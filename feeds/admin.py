@@ -1,25 +1,46 @@
 from django.contrib import admin
 from django.utils.safestring import mark_safe
+from django.urls import reverse
 
 # Register your models here.
 from feeds import models
 
 class SourceAdmin(admin.ModelAdmin):
 
+    list_display = (
+        'name',
+        'posts_link',
+        'live',
+    )
+
+    list_filter = (
+        'live',
+    )
+
     readonly_fields = (
         'posts_link',
     )
 
+    search_fields = (
+        'name',
+    )
+
+    prepopulated_fields = {"slug": ("name",)}
+
     def posts_link(self, obj=None):
-        if not obj:
+        if not obj or not obj.id:
             return ''
         qs = obj.posts.all()
-        return mark_safe('<a href="/admin/feeds/post/?source__id=%i" target="_blank">%i Posts</a>' % (obj.id, qs.count()))
+        url = reverse('admin:feeds_post_changelist')
+        # return mark_safe('<a href="/admin/feeds/post/?source__id=%i" target="_blank">%i Posts</a>' % (obj.id, qs.count()))
+        return mark_safe('<a href="%s?source__id=%i" target="_blank">%i Posts</a>' % (url, obj.id, qs.count()))
     posts_link.short_description = 'posts'
 
 class PostAdmin(admin.ModelAdmin):
 
     raw_id_fields = ('source',)
+
+    prepopulated_fields = {"slug": ("title",)}
 
     list_display = ('title', 'source', 'created', 'guid', 'author')
 
@@ -30,7 +51,7 @@ class PostAdmin(admin.ModelAdmin):
     )
 
     def enclosures_link(self, obj=None):
-        if not obj:
+        if not obj or not obj.id:
             return ''
         qs = obj.enclosures.all()
         return mark_safe('<a href="/admin/feeds/enclosure/?post__id=%i" target="_blank">%i Enclosures</a>' % (obj.id, qs.count()))
@@ -40,7 +61,7 @@ class EnclosureAdmin(admin.ModelAdmin):
 
     raw_id_fields = ('post',)
 
-    list_display = ('href', 'type')
+    list_display = ('href', 'type', 'length')
 
 admin.site.register(models.Source, SourceAdmin)
 admin.site.register(models.Post, PostAdmin)

@@ -94,10 +94,12 @@ def fix_relative(html, url):
     return html
         
 
-def update_feeds(max_feeds=3, output=NullOutput()):
+def update_feeds(max_feeds=3, output=NullOutput(), sources=None, force=False):
 
-
-    todo = Source.objects.filter(Q(due_poll__lt = timezone.now()) & Q(live = True))
+    if sources is None:
+        todo = Source.objects.filter(Q(due_poll__lt = timezone.now()) & Q(live = True))
+    else:
+        todo = sources
 
     
     output.write("Queue size is {}".format(todo.count()))
@@ -108,14 +110,14 @@ def update_feeds(max_feeds=3, output=NullOutput()):
 
 
     for src in sources:
-        read_feed(src, output)
+        read_feed(src, output, force=force)
         
     # kill shit proxies
     
     WebProxy.objects.filter(address='X').delete()
     
     
-def read_feed(source_feed, output=NullOutput()):
+def read_feed(source_feed, output=NullOutput(), force=False):
 
     old_interval = source_feed.interval
 
@@ -129,7 +131,6 @@ def read_feed(source_feed, output=NullOutput()):
     agent = get_agent(source_feed)
 
     headers = { "User-Agent": agent } #identify ourselves 
-
 
     proxies = {}
     proxy = None
@@ -147,10 +148,11 @@ def read_feed(source_feed, output=NullOutput()):
             pass    
 
 
-    if source_feed.etag:
-        headers["If-None-Match"] = str(source_feed.etag)
-    if source_feed.last_modified:
-        headers["If-Modified-Since"] = str(source_feed.last_modified)
+    if not force:
+        if source_feed.etag:
+            headers["If-None-Match"] = str(source_feed.etag)
+        if source_feed.last_modified:
+            headers["If-Modified-Since"] = str(source_feed.last_modified)
 
     output.write("\nFetching %s" % source_feed.feed_url)
     
@@ -159,9 +161,9 @@ def read_feed(source_feed, output=NullOutput()):
         ret = requests.get(source_feed.feed_url, headers=headers, allow_redirects=False, timeout=20, proxies=proxies)
         source_feed.status_code = ret.status_code
         source_feed.last_result = "Unhandled Case"
-        output.write(str(ret))
+        output.write('Response: %s' % str(ret))
     except Exception as ex:
-        logging.error("Fetch feed error: " + str(ex))
+        logging.error("Fetch feed error from source %s url %s: %s" % (source_feed.id, source_feed.feed_url, ex))
         source_feed.last_result = ("Fetch error:" + str(ex))[:255]
         source_feed.status_code = 0
         output.write("\nFetch error: " + str(ex))
@@ -518,7 +520,7 @@ def parse_feed_xml(source_feed, feed_content, output):
 
             try:
                 seen_files = []
-                for ee in list(p.enclosure_set.all()):
+                for ee in list(p.enclosures.all()):
                     # check existing enclosure is still there
                     found_enclosure = False
                     for pe in e["enclosures"]:
@@ -707,7 +709,7 @@ def parse_feed_json(source_feed, feed_content, output):
 
             try:
                 seen_files = []
-                for ee in list(p.enclosure_set.all()):
+                for ee in list(p.enclosures.all()):
                     # check existing enclosure is still there
                     found_enclosure = False
                     if "attachments" in e:
@@ -770,8 +772,8 @@ def parse_feed_json(source_feed, feed_content, output):
     
 def test_feed(source, cache=False, output=NullOutput()):
 
-
-    headers = { "User-Agent": get_agent(source)  } #identify ourselves and also stop our requests getting picked up by any cache
+    user_agent = get_agent(source)
+    headers = { "User-Agent": user_agent  } #identify ourselves and also stop our requests getting picked up by any cache
 
     if cache:
         if source.etag:

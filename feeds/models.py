@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.timezone import utc
+from django.utils.text import slugify
 
 import time
 import datetime
@@ -12,6 +13,7 @@ import email
 class Source(models.Model):
     # This is an actual feed that we poll
     name          = models.CharField(max_length=255, blank=True, null=True)
+    slug          = models.SlugField(max_length=255, blank=True, null=True, unique=True)
     site_url      = models.CharField(max_length=255, blank=True, null=True)
     feed_url      = models.CharField(max_length=255)
     image_url     = models.CharField(max_length=255, blank=True, null=True)
@@ -25,8 +27,8 @@ class Source(models.Model):
     
     last_result    = models.CharField(max_length=255,blank=True,null=True)
     interval       = models.PositiveIntegerField(default=400)
-    last_success   = models.DateTimeField(null=True)
-    last_change    = models.DateTimeField(null=True)
+    last_success   = models.DateTimeField(null=True, default=datetime.datetime(1900, 1, 1))
+    last_change    = models.DateTimeField(null=True, default=datetime.datetime(1900, 1, 1))
     live           = models.BooleanField(default=True)
     status_code    = models.PositiveIntegerField(default=0)
     last_302_url   = models.CharField(max_length=255, null=True, blank=True)
@@ -110,6 +112,7 @@ class Post(models.Model):
     
     source        = models.ForeignKey(Source, on_delete=models.CASCADE, related_name='posts')
     title         = models.TextField(blank=True)
+    slug          = models.SlugField(max_length=255, blank=True, null=True, unique=True)
     body          = models.TextField()
     link          = models.CharField(max_length=512, blank=True, null=True)
     found         = models.DateTimeField(auto_now_add=True)
@@ -144,7 +147,12 @@ class Post(models.Model):
 
     class Meta:
         ordering = ["index"]
-        
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify((self.title or '').strip())
+        super().save(*args, **kwargs)
+
 class Enclosure(models.Model):
 
     post   = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='enclosures')
@@ -167,7 +175,10 @@ class WebProxy(models.Model):
     # this class if for Cloudflare avoidance and contains a list of potential
     # web proxies that we can try, scraped from the internet
     address = models.CharField(max_length=255)
-    
+
+    class Meta:
+        verbose_name_plural = 'web proxies'
+
     def __str__(self):
         return "Proxy:{}".format(self.address)
 

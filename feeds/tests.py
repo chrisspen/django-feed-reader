@@ -76,7 +76,7 @@ class XMLFeedsTest(BaseTest):
         
         self.assertEqual(src.description, 'SU: Three nerds discussing tech, Apple, programming, and loosely related matters.') 
 
-        self.assertEqual(src.post_set.all()[0].enclosure_set.count(), 1)
+        self.assertEqual(src.post_set.all()[0].enclosures.count(), 1)
 
 
 
@@ -198,7 +198,7 @@ class JSONFeedTest(BaseTest):
         
         post = src.post_set.all()[0]
         
-        self.assertEqual(post.enclosure_set.count(), 1)
+        self.assertEqual(post.enclosures.count(), 1)
 
 
 @requests_mock.Mocker()
