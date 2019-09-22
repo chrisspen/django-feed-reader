@@ -104,7 +104,11 @@ class Source(models.Model):
             css = "#%02x%02x00" % (red,green)
             
         return css
-        
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify((self.name or '').strip())
+        super().save(*args, **kwargs)
 
 class Post(models.Model):
 
