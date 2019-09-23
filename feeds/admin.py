@@ -44,6 +44,10 @@ class PostAdmin(admin.ModelAdmin):
 
     list_display = ('title', 'source', 'created', 'guid', 'author')
 
+    list_filter = (
+        'source',
+    )
+
     search_fields = ('title',)
 
     readonly_fields = (
