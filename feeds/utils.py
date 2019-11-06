@@ -222,9 +222,7 @@ def read_feed(source_feed, output=NullOutput(), force=False):
             source_feed.last_result = "Clearing etag/last modified due to lack of changes"
             source_feed.etag = None
             source_feed.last_modified = None
-        
-        
-    
+
     elif ret.status_code == 301 or ret.status_code == 308: #permenant redirect
         new_url = ""
         try:
@@ -318,18 +316,20 @@ def read_feed(source_feed, output=NullOutput(), force=False):
         content_type = "Not Set"
         if "Content-Type" in ret.headers:
             content_type = ret.headers["Content-Type"]
+        logging.info('content_type: %s', content_type)
 
-        (ok,changed) = import_feed(source_feed=source_feed, feed_body=ret.content, content_type=content_type, output=output)
-        
+        (ok, changed) = import_feed(source_feed=source_feed, feed_body=ret.content, content_type=content_type, output=output)
         if ok and changed:
+            logging.info('OK-changed')
             source_feed.interval /= 2
             source_feed.last_result = " OK (updated)" #and temporary redirects
             source_feed.last_change = timezone.now()
-            
         elif ok:
+            logging.info('OK-unchanged')
             source_feed.last_result = "OK"
             source_feed.interval += 20 # we slow down feeds a little more that don't send headers we can use
-        else: #not OK
+        else:
+            logging.info('BAD')
             source_feed.interval += 120
             
     if source_feed.interval < 60:
@@ -349,11 +349,14 @@ def import_feed(source_feed, feed_body, content_type, output=NullOutput()):
     ok = False
     changed = False
     
-    if "xml" in content_type or feed_body[0:1] == b"<":
-        (ok,changed) = parse_feed_xml(source_feed, feed_body, output)
+    if "xml" in content_type or "html" in content_type or feed_body[0:1] == b"<":
+        logging.info('Parsing XML...')
+        (ok, changed) = parse_feed_xml(source_feed, feed_body, output)
     elif "json" in content_type or feed_body[0:1] == b"{":
+        logging.info('Parsing JSON...')
         (ok,changed) = parse_feed_json(source_feed, str(feed_body, "utf-8"), output)
     else:
+        logging.info('Unknown feed type: %s', content_type)
         ok = False
         source_feed.last_result = "Unknown Feed Type: " + content_type
 
