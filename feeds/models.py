@@ -116,11 +116,11 @@ class Post(models.Model):
     
     source        = models.ForeignKey(Source, on_delete=models.CASCADE, related_name='posts')
     title         = models.TextField(blank=True)
-    slug          = models.SlugField(max_length=255, blank=True, null=True, unique=True)
+    slug          = models.SlugField(max_length=255, blank=True, null=True)
     body          = models.TextField()
     link          = models.CharField(max_length=512, blank=True, null=True)
     found         = models.DateTimeField(auto_now_add=True)
-    created       = models.DateTimeField(db_index=True)
+    created       = models.DateTimeField(db_index=True, auto_now_add=True)
     guid          = models.CharField(max_length=255, blank=True, null=True, db_index=True)
     author        = models.CharField(max_length=255, blank=True, null=True)
     index         = models.IntegerField(db_index=True)
@@ -151,6 +151,9 @@ class Post(models.Model):
 
     class Meta:
         ordering = ["index"]
+        unique_together = (
+            ('source', 'slug'),
+        )
 
     def save(self, *args, **kwargs):
         if not self.slug:
