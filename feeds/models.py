@@ -10,7 +10,16 @@ from django.utils.timezone import utc
 from django.utils.text import slugify
 
 
+class SourceManager(models.Manager):
+
+    def get_by_natural_key(self, slug):
+        return self.get(slug=slug)
+
+
 class Source(models.Model):
+
+    objects = SourceManager()
+
     # This is an actual feed that we poll
     name = models.CharField(max_length=255, blank=True, null=True)
     slug = models.SlugField(max_length=255, blank=True, null=True, unique=True)
@@ -111,9 +120,18 @@ class Source(models.Model):
         super().save(*args, **kwargs)
 
 
+class PostManager(models.Manager):
+
+    def get_by_natural_key(self, guid, *args):
+        source = Source.objects.get_by_natural_key(*args)
+        return self.get(guid=guid, source=source)
+
+
 class Post(models.Model):
 
     # an entry in a feed
+
+    objects = PostManager()
 
     source = models.ForeignKey(Source, on_delete=models.CASCADE, related_name='posts')
     title = models.TextField(blank=True)
@@ -158,7 +176,16 @@ class Post(models.Model):
         super().save(*args, **kwargs)
 
 
+class EnclosureManager(models.Manager):
+
+    def get_by_natural_key(self, length, *args):
+        post = Post.objects.get_by_natural_key(*args)
+        return self.get(length=length, post=post)
+
+
 class Enclosure(models.Model):
+
+    objects = EnclosureManager()
 
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='enclosures')
     length = models.IntegerField(default=0)
