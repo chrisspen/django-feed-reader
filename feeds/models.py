@@ -1,45 +1,47 @@
+# import time
+import datetime
+from urllib.parse import urlencode
+import logging
+# import sys
+# import email
+
 from django.db import models
 from django.utils.timezone import utc
 from django.utils.text import slugify
 
-import time
-import datetime
-from urllib.parse import urlencode
-import logging
-import sys
-import email
-
 
 class Source(models.Model):
     # This is an actual feed that we poll
-    name          = models.CharField(max_length=255, blank=True, null=True)
-    slug          = models.SlugField(max_length=255, blank=True, null=True, unique=True)
-    site_url      = models.CharField(max_length=255, blank=True, null=True)
-    feed_url      = models.CharField(max_length=255)
-    image_url     = models.CharField(max_length=255, blank=True, null=True)
+    name = models.CharField(max_length=255, blank=True, null=True)
+    slug = models.SlugField(max_length=255, blank=True, null=True, unique=True)
+    site_url = models.CharField(max_length=255, blank=True, null=True)
+    feed_url = models.CharField(max_length=255)
+    image_url = models.CharField(max_length=255, blank=True, null=True)
 
-    description   = models.TextField(null=True, blank=True)
+    description = models.TextField(null=True, blank=True)
 
-    last_polled   = models.DateTimeField(max_length=255, blank=True, null=True)
-    due_poll      = models.DateTimeField(default=datetime.datetime(1900, 1, 1)) # default to distant past to put new sources to front of queue
-    etag          = models.CharField(max_length=255, blank=True, null=True)
+    last_polled = models.DateTimeField(max_length=255, blank=True, null=True)
+    due_poll = models.DateTimeField(default=datetime.datetime(1900, 1, 1)) # default to distant past to put new sources to front of queue
+    etag = models.CharField(max_length=255, blank=True, null=True)
     last_modified = models.CharField(max_length=255, blank=True, null=True) # just pass this back and forward between server and me , no need to parse
 
-    last_result    = models.CharField(max_length=255,blank=True,null=True)
-    interval       = models.PositiveIntegerField(default=400)
-    last_success   = models.DateTimeField(null=True, default=datetime.datetime(1900, 1, 1))
-    last_change    = models.DateTimeField(null=True, default=datetime.datetime(1900, 1, 1))
-    live           = models.BooleanField(default=True)
-    status_code    = models.PositiveIntegerField(default=0)
-    last_302_url   = models.CharField(max_length=255, null=True, blank=True)
+    last_result = models.CharField(max_length=255, blank=True, null=True)
+    interval = models.PositiveIntegerField(default=400)
+    last_success = models.DateTimeField(null=True, default=datetime.datetime(1900, 1, 1))
+    last_change = models.DateTimeField(null=True, default=datetime.datetime(1900, 1, 1))
+    live = models.BooleanField(default=True)
+    status_code = models.PositiveIntegerField(default=0)
+    last_302_url = models.CharField(max_length=255, null=True, blank=True)
     last_302_start = models.DateTimeField(null=True, blank=True)
 
-    max_index     = models.IntegerField(default=0)
+    max_index = models.IntegerField(default=0)
 
-    num_subs      = models.IntegerField(default=1)
+    num_subs = models.IntegerField(default=1)
 
-    is_cloudflare  = models.BooleanField(default=False)
+    is_cloudflare = models.BooleanField(default=False)
 
+    def natural_key(self):
+        return (self.slug,)
 
     def __str__(self):
         return self.display_name
@@ -62,17 +64,17 @@ class Source(models.Model):
 
         if not self.live:
             css = "background-color:#ccc;"
-        elif self.last_change == None or self.last_success == None:
+        elif self.last_change is None or self.last_success is None:
             css = "background-color:#D00;color:white"
         else:
             dd = datetime.datetime.utcnow().replace(tzinfo=utc) - self.last_change
 
-            days = int (dd.days / 2)
+            days = int(dd.days / 2)
 
             col = 255 - days
             if col < 0: col = 0
 
-            css = "background-color:#ff%02x%02x" % (col,col)
+            css = "background-color:#ff%02x%02x" % (col, col)
 
             if col < 128:
                 css += ";color:white"
@@ -83,23 +85,23 @@ class Source(models.Model):
     def health_box(self):
 
         if not self.live:
-            css="#ccc;"
-        elif self.last_change == None or self.last_success == None:
-            css="#F00;"
+            css = "#ccc;"
+        elif self.last_change is None or self.last_success is None:
+            css = "#F00;"
         else:
             dd = datetime.datetime.utcnow().replace(tzinfo=utc) - self.last_change
 
-            days = int (dd.days/2)
+            days = int(dd.days / 2)
 
             red = days
             if red > 255:
                 red = 255
 
-            green = 255-days;
+            green = 255 - days
             if green < 0:
                 green = 0
 
-            css = "#%02x%02x00" % (red,green)
+            css = "#%02x%02x00" % (red, green)
 
         return css
 
@@ -107,6 +109,7 @@ class Source(models.Model):
         if not self.slug:
             self.slug = slugify((self.name or '').strip())
         super().save(*args, **kwargs)
+
 
 class Post(models.Model):
 
@@ -122,15 +125,20 @@ class Post(models.Model):
     guid = models.CharField(max_length=255, blank=True, null=True, db_index=True)
     author = models.CharField(max_length=255, blank=True, null=True)
     index = models.IntegerField(db_index=True)
-    image_url = models.CharField(max_length=255,blank=True,null=True)
+    image_url = models.CharField(max_length=255, blank=True, null=True)
+
+    def natural_key(self):
+        return (self.guid,) + self.source.natural_key()
+
+    natural_key.dependencies = ['feeds.source']
 
     @property
     def title_url_encoded(self):
         try:
-            ret = urlencode({"X":self.title})
+            ret = urlencode({"X": self.title})
             if len(ret) > 2: ret = ret[2:]
         except:
-            logging.info("Failed to url encode title of post {}".format(self.id))
+            logging.info("Failed to url encode title of post %s.", self.id)
             ret = ""
 
     def __str__(self):
@@ -142,21 +150,27 @@ class Post(models.Model):
 
     class Meta:
         ordering = ["index"]
-        unique_together = (
-            ('source', 'slug'),
-        )
+        unique_together = (('source', 'slug'),)
 
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify((self.title or '').strip())
         super().save(*args, **kwargs)
 
+
 class Enclosure(models.Model):
 
-    post   = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='enclosures')
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='enclosures')
     length = models.IntegerField(default=0)
-    href   = models.CharField(max_length=512)
-    type   = models.CharField(max_length=256)
+    href = models.CharField(max_length=512)
+    type = models.CharField(max_length=256)
+
+    def natural_key(self):
+        # Length is a better predictor of uniqueness than href because href changes sometimes due to tracker prefixes.
+        # Where as it's extremely unlikely two different enclosures under a single post have identical lengths.
+        return (self.length,) + self.post.natural_key()
+
+    natural_key.dependencies = ['feeds.post']
 
     @property
     def recast_link(self):
