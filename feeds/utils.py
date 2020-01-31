@@ -515,8 +515,8 @@ def parse_feed_xml(source_feed, feed_content, output):
                 for pe in e["enclosures"]:
                     if pe["href"] == ee.href and ee.href not in seen_files:
                         found_enclosure = True
-                        ee.length = int(pe.get("length") or 0)
-                        typ = pe.get("type", "audio/mpeg")  # we are assuming podcasts here but that's probably not safe
+                        ee.length = int(pe.get("length", None) or 0)
+                        typ = pe.get("type", None) or "audio/mpeg"  # we are assuming podcasts here but that's probably not safe
                         ee.type = typ
                         ee.save()
                         break
@@ -528,7 +528,7 @@ def parse_feed_xml(source_feed, feed_content, output):
                 seen_files.append(ee.href)
 
             for pe in e["enclosures"]:
-                if pe["href"] not in seen_files:
+                if pe["href"] not in seen_files and not p.enclosures.all().exists():
                     length = int(pe.get("length") or 0)
                     typ = pe.get("type") or "audio/mpeg"
                     ee = Enclosure(post=p, href=pe["href"], length=length, type=typ)
@@ -671,20 +671,10 @@ def parse_feed_json(source_feed, feed_content, output):
                     found_enclosure = False
                     if "attachments" in e:
                         for pe in e["attachments"]:
-
                             if pe["url"] == ee.href and ee.href not in seen_files:
                                 found_enclosure = True
-
-                                try:
-                                    ee.length = int(pe["size_in_bytes"])
-                                except:
-                                    ee.length = 0
-
-                                try:
-                                    typ = pe["mime_type"]
-                                except:
-                                    typ = "audio/mpeg"  # we are assuming podcasts here but that's probably not safe
-
+                                ee.length = int(pe.get("size_in_bytes", None) or 0)
+                                typ = pe.get("mime_type", None) or "audio/mpeg"
                                 ee.type = typ
                                 ee.save()
                                 break
@@ -697,20 +687,14 @@ def parse_feed_json(source_feed, feed_content, output):
 
                 if "attachments" in e:
                     for pe in e["attachments"]:
-
                         try:
-                            if pe["url"] not in seen_files:
-
-                                try:
-                                    length = int(pe["size_in_bytes"])
-                                except:
-                                    length = 0
-
-                                try:
-                                    typ = pe["mime_type"]
-                                except:
-                                    typ = "audio/mpeg"
-
+                            # Since many RSS feeds embed trackers into their URL that constantly change, yet almost always only include a single enclosure,
+                            # we'll only create a new enclosure when we see a new url if there are no enclosure records created yet.
+                            # This is a most robust way of preventing logical duplicates due to tracker URL changes then by trying to predict and strip out
+                            # all known tracker prefixes.
+                            if pe["url"] not in seen_files and not p.enclosures.all().exists():
+                                length = int(pe.get("size_in_bytes", None) or 0)
+                                typ = pe.get("mime_type", None) or "audio/mpeg"
                                 ee = Enclosure(post=p, href=pe["url"], length=length, type=typ)
                                 ee.save()
                         except Exception as ex:
