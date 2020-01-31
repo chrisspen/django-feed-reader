@@ -378,7 +378,6 @@ def parse_feed_xml(source_feed, feed_content, output):
     ok = True
     changed = False
 
-    #logging.info(ret.content)
     try:
 
         _customize_sanitizer(feedparser)
@@ -426,11 +425,9 @@ def parse_feed_xml(source_feed, feed_content, output):
             pass
 
 
-
         #logging.info(entries)
         entries.reverse() # Entries are typically in reverse chronological order - put them in right order
         for e in entries:
-
 
             # we are going to take the longest
             body = ""
@@ -477,12 +474,12 @@ def parse_feed_xml(source_feed, feed_content, output):
 
             try:
                 title = e.title
-            except Exception as ex:
+            except (AttributeError, KeyError):
                 title = ""
 
             try:
                 p.link = e.link
-            except Exception as ex:
+            except (AttributeError, KeyError):
                 p.link = ''
             p.title = title
 
@@ -491,9 +488,10 @@ def parse_feed_xml(source_feed, feed_content, output):
             except:
                 pass
 
-
             try:
+                logging.info('Raw created date: %s', e.published_parsed)
                 p.created = datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=timezone.utc)
+                logging.info('Normalized created date: %s', p.created)
             except Exception as ex:
                 logging.exception("Unable to parse published timestamp.")
                 p.created = timezone.now()
@@ -501,7 +499,7 @@ def parse_feed_xml(source_feed, feed_content, output):
             p.guid = guid
             try:
                 p.author = e.author
-            except Exception as ex:
+            except (AttributeError, KeyError):
                 logging.exception('Unable to parse author.')
                 p.author = ""
 
@@ -510,53 +508,31 @@ def parse_feed_xml(source_feed, feed_content, output):
             except Exception as ex:
                 logging.exception('Unable to save post.')
 
-            try:
-                seen_files = []
-                for ee in list(p.enclosures.all()):
-                    # check existing enclosure is still there
-                    found_enclosure = False
-                    for pe in e["enclosures"]:
-
-                        if pe["href"] == ee.href and ee.href not in seen_files:
-                            found_enclosure = True
-
-                            try:
-                                ee.length = int(pe["length"])
-                            except:
-                                ee.length = 0
-
-                            try:
-                                typ = pe["type"]
-                            except:
-                                typ = "audio/mpeg"  # we are assuming podcasts here but that's probably not safe
-
-                            ee.type = typ
-                            ee.save()
-                            break
-                    if not found_enclosure:
-                        ee.delete()
-                    seen_files.append(ee.href)
-
+            seen_files = []
+            for ee in list(p.enclosures.all()):
+                # check existing enclosure is still there
+                found_enclosure = False
                 for pe in e["enclosures"]:
-                    try:
-                        if pe["href"] not in seen_files:
+                    if pe["href"] == ee.href and ee.href not in seen_files:
+                        found_enclosure = True
+                        ee.length = int(pe.get("length") or 0)
+                        typ = pe.get("type", "audio/mpeg")  # we are assuming podcasts here but that's probably not safe
+                        ee.type = typ
+                        ee.save()
+                        break
 
-                            try:
-                                length = int(pe["length"])
-                            except:
-                                length = 0
+                # DANGEROUS! If there's a glitch in the feed that temporarily removes all enclosures, this will delete everything!
+                # if not found_enclosure:
+                    # ee.delete()
 
-                            try:
-                                typ = pe["type"]
-                            except:
-                                typ = "audio/mpeg"
+                seen_files.append(ee.href)
 
-                            ee = Enclosure(post=p, href=pe["href"], length=length, type=typ)
-                            ee.save()
-                    except Exception as ex:
-                        pass
-            except Exception as ex:
-                logging.exception("No enclosures.")
+            for pe in e["enclosures"]:
+                if pe["href"] not in seen_files:
+                    length = int(pe.get("length") or 0)
+                    typ = pe.get("type") or "audio/mpeg"
+                    ee = Enclosure(post=p, href=pe["href"], length=length, type=typ)
+                    ee.save()
 
             try:
                 p.body = body
@@ -712,8 +688,11 @@ def parse_feed_json(source_feed, feed_content, output):
                                 ee.type = typ
                                 ee.save()
                                 break
-                    if not found_enclosure:
-                        ee.delete()
+
+                    # DANGEROUS! This deletes everything if a glitch in the feed removes enclosures.
+                    # if not found_enclosure:
+                        # ee.delete()
+
                     seen_files.append(ee.href)
 
                 if "attachments" in e:
