@@ -10,6 +10,7 @@ import json
 from django.db.models import Q
 from django.utils import timezone
 from django.conf import settings
+from django.db.utils import IntegrityError
 
 from feeds.models import Source, Enclosure, Post, WebProxy
 
@@ -452,6 +453,7 @@ def parse_feed_xml(source_feed, feed_content, output):
 
             body = fix_relative(body, source_feed.site_url)
 
+            guid = None
             try:
                 guid = e.guid
             except Exception as ex:
@@ -462,51 +464,51 @@ def parse_feed_xml(source_feed, feed_content, output):
                     m.update(body.encode("utf-8"))
                     guid = m.hexdigest()
 
-            try:
-                p = Post.objects.filter(source=source_feed).filter(guid=guid)[0]
-                logging.info("Post exists: %s", guid)
-            except Exception as ex:
-                logging.info("Creating post: %s", guid)
-                p = Post(index=0, body=" ")
-                p.found = timezone.now()
-                changed = True
-                p.source = source_feed
+            post_defaults = {}
 
             try:
-                title = e.title
+                post_defaults['title'] = e.title
             except (AttributeError, KeyError):
-                title = ""
+                post_defaults['title'] = ""
 
             try:
-                p.link = e.link
+                post_defaults['link'] = e.link
             except (AttributeError, KeyError):
-                p.link = ''
-            p.title = title
+                post_defaults['link'] = ''
 
             try:
-                p.image_url = e.image.href
-            except:
+                post_defaults['image_url'] = e.image.href
+            except (AttributeError, KeyError):
                 pass
 
             try:
                 logging.info('Raw created date: %s', e.published_parsed)
-                p.created = datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=timezone.utc)
+                post_defaults['created'] = datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=timezone.utc)
                 logging.info('Normalized created date: %s', p.created)
             except Exception as ex:
                 logging.exception("Unable to parse published timestamp.")
-                p.created = timezone.now()
+                post_defaults['created'] = timezone.now()
 
-            p.guid = guid
             try:
-                p.author = e.author
+                post_defaults['author'] = e.author
             except (AttributeError, KeyError):
-                logging.exception('Unable to parse author.')
-                p.author = ""
+                post_defaults['author'] = ""
 
+            post_defaults.setdefault('found', timezone.now())
+            post_defaults.setdefault('index', 0)
+            post_defaults.setdefault('body', ' ')
+
+            logging.info('Getting or creating post %s %s for source %s...', post_defaults['title'], guid, source_feed)
+            # slug = slugify((post_defaults['title'] or '').strip())
             try:
+                p, changed = Post.objects.get_or_create(source=source_feed, guid=guid, defaults=post_defaults)
                 p.save()
-            except Exception as ex:
-                logging.exception('Unable to save post.')
+            except IntegrityError:
+                # If this happens, it usually means some idiot changed the non-editable permalink for their post after we initially parsed it,
+                # but left the title the same, resulting in a post with a duplicate slug but different GUID.
+                # Since we've already parsed this post, and have already loaded its enclosures, we'll ignore this revised post because the change
+                # is likely irrelevant.
+                continue
 
             seen_files = []
             for ee in list(p.enclosures.all()):

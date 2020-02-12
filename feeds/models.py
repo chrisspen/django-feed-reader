@@ -168,7 +168,10 @@ class Post(models.Model):
 
     class Meta:
         ordering = ["index"]
-        unique_together = (('source', 'slug'),)
+        unique_together = (
+            ('source', 'slug'),
+            ('source', 'guid'),
+        )
 
     def save(self, *args, **kwargs):
         if not self.slug:
