@@ -484,7 +484,7 @@ def parse_feed_xml(source_feed, feed_content, output):
             try:
                 logging.info('Raw created date: %s', e.published_parsed)
                 post_defaults['created'] = datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=timezone.utc)
-                logging.info('Normalized created date: %s', p.created)
+                logging.info('Normalized created date: %s', post_defaults['created'])
             except Exception as ex:
                 logging.exception("Unable to parse published timestamp.")
                 post_defaults['created'] = timezone.now()
