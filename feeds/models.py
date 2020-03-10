@@ -135,7 +135,7 @@ class Post(models.Model):
 
     source = models.ForeignKey(Source, on_delete=models.CASCADE, related_name='posts')
     title = models.TextField(blank=True)
-    slug = models.SlugField(max_length=255, blank=True, null=True)
+    slug = models.SlugField(max_length=2000, blank=True, null=True)
     body = models.TextField()
     link = models.CharField(max_length=512, blank=True, null=True)
     found = models.DateTimeField(auto_now_add=True)
@@ -143,7 +143,7 @@ class Post(models.Model):
     guid = models.CharField(max_length=255, blank=True, null=True, db_index=True)
     author = models.CharField(max_length=255, blank=True, null=True)
     index = models.IntegerField(db_index=True)
-    image_url = models.CharField(max_length=255, blank=True, null=True)
+    image_url = models.CharField(max_length=2000, blank=True, null=True)
 
     def natural_key(self):
         return (self.guid,) + self.source.natural_key()
@@ -176,6 +176,10 @@ class Post(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify((self.title or '').strip())
+        print('slug:', len(self.slug))
+        print('guid:', len(self.guid or ''))
+        print('author:', len(self.author or ''))
+        print('image_url:', len(self.image_url or ''))
         super().save(*args, **kwargs)
 
 
