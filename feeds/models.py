@@ -23,9 +23,9 @@ class Source(models.Model):
     # This is an actual feed that we poll
     name = models.CharField(max_length=255, blank=True, null=True)
     slug = models.SlugField(max_length=255, blank=True, null=True, unique=True)
-    site_url = models.CharField(max_length=255, blank=True, null=True)
-    feed_url = models.CharField(max_length=255)
-    image_url = models.CharField(max_length=255, blank=True, null=True)
+    site_url = models.CharField(max_length=1000, blank=True, null=True)
+    feed_url = models.CharField(max_length=1000)
+    image_url = models.CharField(max_length=1000, blank=True, null=True)
 
     description = models.TextField(null=True, blank=True)
 
@@ -40,7 +40,7 @@ class Source(models.Model):
     last_change = models.DateTimeField(null=True, default=datetime.datetime(1900, 1, 1))
     live = models.BooleanField(default=True)
     status_code = models.PositiveIntegerField(default=0)
-    last_302_url = models.CharField(max_length=255, null=True, blank=True)
+    last_302_url = models.CharField(max_length=1000, null=True, blank=True)
     last_302_start = models.DateTimeField(null=True, blank=True)
 
     max_index = models.IntegerField(default=0)
