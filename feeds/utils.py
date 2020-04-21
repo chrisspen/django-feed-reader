@@ -481,11 +481,13 @@ def parse_feed_xml(source_feed, feed_content, output):
             except (AttributeError, KeyError):
                 pass
 
+            force_set_created = True
             try:
                 logging.info('Raw created date: %s', e.published_parsed)
                 post_defaults['created'] = datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=timezone.utc)
                 logging.info('Normalized created date: %s', post_defaults['created'])
             except Exception as ex:
+                force_set_created = False
                 logging.exception("Unable to parse published timestamp.")
                 post_defaults['created'] = timezone.now()
 
@@ -499,9 +501,10 @@ def parse_feed_xml(source_feed, feed_content, output):
             post_defaults.setdefault('body', ' ')
 
             logging.info('Getting or creating post %s %s for source %s...', post_defaults['title'], guid, source_feed)
-            # slug = slugify((post_defaults['title'] or '').strip())
             try:
                 p, changed = Post.objects.get_or_create(source=source_feed, guid=guid, defaults=post_defaults)
+                if force_set_created:
+                    p.created = post_defaults['created']
                 p.save()
             except IntegrityError:
                 # If this happens, it usually means some idiot changed the non-editable permalink for their post after we initially parsed it,
