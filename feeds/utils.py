@@ -397,7 +397,8 @@ def parse_feed_xml(source_feed, feed_content, output):
 
     if ok:
         try:
-            source_feed.name = f.feed.title
+            if not source_feed.name:
+                source_feed.name = f.feed.title
         except Exception as ex:
             pass
 
@@ -583,7 +584,8 @@ def parse_feed_json(source_feed, feed_content, output):
 
         try:
             source_feed.site_url = f["home_page_url"]
-            source_feed.name = f["title"]
+            if not source_feed.name:
+                source_feed.name = f["title"]
         except Exception as ex:
             pass
 
@@ -593,7 +595,8 @@ def parse_feed_json(source_feed, feed_content, output):
             source_feed.description = feedparser._sanitizeHTML(f["description"], "utf-8", 'text/html')
 
         _customize_sanitizer(feedparser)
-        source_feed.name = feedparser._sanitizeHTML(source_feed.name, "utf-8", 'text/html')
+        if not source_feed.name:
+            source_feed.name = feedparser._sanitizeHTML(source_feed.name, "utf-8", 'text/html')
 
         if "icon" in f:
             source_feed.image_url = f["icon"]
