@@ -145,6 +145,10 @@ class Post(models.Model):
     index = models.IntegerField(db_index=True)
     image_url = models.CharField(max_length=2000, blank=True, null=True)
 
+    subtitle_href = models.URLField(max_length=1000, blank=True, null=True)
+    subtitle_lang = models.CharField(max_length=50, blank=True, null=True)
+    subtitle_type = models.CharField(max_length=50, blank=True, null=True)
+
     def natural_key(self):
         return (self.guid,) + self.source.natural_key()
 
@@ -209,6 +213,30 @@ class Enclosure(models.Model):
     @property
     def recast_link(self):
         return "/enclosure/%d/" % self.id
+
+
+class MediaContent(models.Model):
+    """
+    Stores data contained in the <media:content> tags.
+    """
+
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='media_content')
+
+    url = models.URLField(max_length=1000, blank=False, null=False)
+
+    content_type = models.CharField(max_length=50, blank=False, null=False)
+
+    duration = models.IntegerField(blank=True, null=True, help_text='Duration of media in seconds.')
+
+    class Meta:
+        unique_together = (
+            ('post', 'url'),
+        )
+
+    def natural_key(self):
+        return (self.url,) + self.post.natural_key()
+
+    natural_key.dependencies = ['feeds.post']
 
 
 class WebProxy(models.Model):

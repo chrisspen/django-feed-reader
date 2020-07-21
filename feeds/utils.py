@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.conf import settings
 from django.db.utils import IntegrityError
 
-from feeds.models import Source, Enclosure, Post, WebProxy
+from feeds.models import Source, Enclosure, Post, WebProxy, MediaContent
 
 import feedparser
 
@@ -519,7 +519,8 @@ def parse_feed_xml(source_feed, feed_content, output):
                 # check existing enclosure is still there
                 found_enclosure = False
                 for pe in e["enclosures"]:
-                    if pe["href"] == ee.href and ee.href not in seen_files:
+                    enc_href = pe.get('href') or pe.get('url')
+                    if enc_href == ee.href and ee.href not in seen_files:
                         found_enclosure = True
                         ee.length = int(pe.get("length", None) or 0)
                         typ = pe.get("type", None) or "audio/mpeg"  # we are assuming podcasts here but that's probably not safe
@@ -534,11 +535,17 @@ def parse_feed_xml(source_feed, feed_content, output):
                 seen_files.append(ee.href)
 
             for pe in e["enclosures"]:
-                if pe["href"] not in seen_files and not p.enclosures.all().exists():
+                enc_href = pe.get('href') or pe.get('url')
+                if enc_href and enc_href not in seen_files and not p.enclosures.all().exists():
                     length = int(pe.get("length") or 0)
                     typ = pe.get("type") or "audio/mpeg"
-                    ee = Enclosure(post=p, href=pe["href"], length=length, type=typ)
+                    ee = Enclosure(post=p, href=enc_href, length=length, type=typ)
                     ee.save()
+
+            if 'media_subtitle' in e:
+                p.subtitle_href = e['media_subtitle'].get('href')
+                p.subtitle_lang = e['media_subtitle'].get('lang')
+                p.subtitle_type = e['media_subtitle'].get('type')
 
             try:
                 p.body = body
@@ -546,8 +553,27 @@ def parse_feed_xml(source_feed, feed_content, output):
             except Exception as ex:
                 logging.exception('Unable to save post body.')
 
-    return (ok, changed)
+            if 'media_content' in e:
+                for media_dict in e['media_content']:
+                    media_url = media_dict.get('url') or None
+                    if not media_url:
+                        continue
+                    media_type = media_dict.get('type') or None
+                    if not media_type:
+                        continue
+                    try:
+                        media_duration = int(float(media_dict.get('duration') or None))
+                    except (ValueError, TypeError):
+                        media_duration = None
+                    MediaContent.objects.get_or_create(post=p, url=media_url, content_type=media_type, defaults={'duration': media_duration})
 
+            # If no primary enclosure but media content contains an mp3 or mp4, then simulate one.
+            possible_enclosure_sources = p.media_content.filter(content_type__in=('video/mp4', 'audio/mpeg'))
+            if not p.enclosures.all().exists() and possible_enclosure_sources.exists():
+                media_source = possible_enclosure_sources.first()
+                Enclosure.objects.get_or_create(post=p, href=media_source.url, type=media_source.content_type, defaults={'length': media_source.duration})
+
+    return (ok, changed)
 
 
 def parse_feed_json(source_feed, feed_content, output):
