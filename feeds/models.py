@@ -200,7 +200,7 @@ class Enclosure(models.Model):
 
     post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='enclosures')
     length = models.IntegerField(default=0)
-    href = models.CharField(max_length=512)
+    href = models.CharField(max_length=2000)
     type = models.CharField(max_length=256)
 
     def natural_key(self):

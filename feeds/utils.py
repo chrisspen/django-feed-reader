@@ -539,7 +539,7 @@ def parse_feed_xml(source_feed, feed_content, output):
                 if enc_href and enc_href not in seen_files and not p.enclosures.all().exists():
                     length = int(pe.get("length") or 0)
                     typ = pe.get("type") or "audio/mpeg"
-                    ee = Enclosure(post=p, href=enc_href, length=length, type=typ)
+                    ee = Enclosure(post=p, href=enc_href[:2000], length=length, type=typ)
                     ee.save()
 
             if 'media_subtitle' in e:
