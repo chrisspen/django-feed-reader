@@ -19,6 +19,7 @@ class SourceAdmin(admin.ModelAdmin):
 
     readonly_fields = (
         'posts_link',
+        'last_created',
     )
 
     search_fields = (

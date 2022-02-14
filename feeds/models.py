@@ -50,7 +50,7 @@ class Source(models.Model):
 
     is_cloudflare = models.BooleanField(default=False)
 
-    last_created = models.DateTimeField(blank=True, null=True, help_text='Datetime of most recent post.')
+    last_created = models.DateTimeField(blank=True, null=True, editable=False, help_text='Datetime of most recent post.')
 
     def natural_key(self):
         return (self.slug,)
