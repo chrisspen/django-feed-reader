@@ -145,11 +145,11 @@ class Post(models.Model):
     title = models.TextField(blank=True)
     slug = models.SlugField(max_length=2000, blank=True, null=True)
     body = models.TextField()
-    link = models.CharField(max_length=512, blank=True, null=True)
+    link = models.CharField(max_length=2000, blank=True, null=True)
     found = models.DateTimeField(auto_now_add=True)
     created = models.DateTimeField(db_index=True, auto_now_add=True)
     guid = models.CharField(max_length=255, blank=True, null=True, db_index=True)
-    author = models.CharField(max_length=255, blank=True, null=True)
+    author = models.CharField(max_length=2000, blank=True, null=True)
     index = models.IntegerField(db_index=True)
     image_url = models.CharField(max_length=2000, blank=True, null=True)
 
