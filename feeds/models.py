@@ -22,8 +22,8 @@ class Source(models.Model):
     objects = SourceManager()
 
     # This is an actual feed that we poll
-    name = models.CharField(max_length=255, blank=True, null=True)
-    slug = models.SlugField(max_length=255, blank=True, null=True, unique=True)
+    name = models.CharField(max_length=1000, blank=True, null=True)
+    slug = models.SlugField(max_length=1000, blank=True, null=True, unique=True)
     site_url = models.CharField(max_length=1000, blank=True, null=True)
     feed_url = models.CharField(max_length=1000)
     image_url = models.CharField(max_length=1000, blank=True, null=True)
