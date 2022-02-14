@@ -6,6 +6,7 @@ import logging
 # import email
 
 from django.db import models
+from django.db.models import Max
 from django.utils.timezone import utc
 from django.utils.text import slugify
 
@@ -48,6 +49,8 @@ class Source(models.Model):
     num_subs = models.IntegerField(default=1)
 
     is_cloudflare = models.BooleanField(default=False)
+
+    last_created = models.DateTimeField(blank=True, null=True, help_text='Datetime of most recent post.')
 
     def natural_key(self):
         return (self.slug,)
@@ -118,6 +121,11 @@ class Source(models.Model):
         if not self.slug:
             self.slug = slugify((self.name or '').strip())
         super().save(*args, **kwargs)
+
+        agg = self.posts.all().aggregate(Max('created'))
+        if agg:
+            self.last_created = agg['created__max']
+            type(self).objects.filter(id=self.id).update(last_created=self.last_created)
 
 
 class PostManager(models.Manager):
