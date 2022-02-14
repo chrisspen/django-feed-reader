@@ -373,6 +373,21 @@ def import_feed(source_feed, feed_body, content_type, output=NullOutput()):
     return (ok, changed)
 
 
+def clean_length(v):
+    try:
+        # Most lengths are just an integer representing seconds.
+        length = int(round(float(v or 0)))
+    except ValueError:
+        # Process j:m:s format?
+        try:
+            _hour, _min, _sec = (v or '').split(':')
+            length = int(_hour)*60*60 + int(_min)*60 + int(_sec)
+        except ValueError:
+            length = 0
+    if length > 2**31:
+        length = 0
+    return length
+
 
 def parse_feed_xml(source_feed, feed_content, output):
 
@@ -522,7 +537,7 @@ def parse_feed_xml(source_feed, feed_content, output):
                     enc_href = pe.get('href') or pe.get('url')
                     if enc_href == ee.href and ee.href not in seen_files:
                         found_enclosure = True
-                        ee.length = int(pe.get("length", None) or 0)
+                        ee.length = clean_length(pe.get("length"))
                         typ = pe.get("type", None) or "audio/mpeg"  # we are assuming podcasts here but that's probably not safe
                         ee.type = typ
                         ee.save()
@@ -537,7 +552,7 @@ def parse_feed_xml(source_feed, feed_content, output):
             for pe in e["enclosures"]:
                 enc_href = pe.get('href') or pe.get('url')
                 if enc_href and enc_href not in seen_files and not p.enclosures.all().exists():
-                    length = int(pe.get("length") or 0)
+                    length = clean_length(pe.get("length"))
                     typ = pe.get("type") or "audio/mpeg"
                     ee = Enclosure(post=p, href=enc_href[:2000], length=length, type=typ)
                     ee.save()
