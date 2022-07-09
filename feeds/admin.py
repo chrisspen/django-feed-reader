@@ -28,13 +28,15 @@ class SourceAdmin(admin.ModelAdmin):
 
     prepopulated_fields = {"slug": ("name",)}
 
+    def lookup_allowed(self, request, model_admin):
+        return True
+
     def posts_link(self, obj=None):
         if not obj or not obj.id:
             return ''
         qs = obj.posts.all()
         url = reverse('admin:feeds_post_changelist')
-        # return mark_safe('<a href="/admin/feeds/post/?source__id=%i" target="_blank">%i Posts</a>' % (obj.id, qs.count()))
-        return mark_safe('<a href="%s?source__id=%i" target="_blank">%i Posts</a>' % (url, obj.id, qs.count()))
+        return mark_safe(f'<a href="{url}?source_id={obj.id}" target="_blank">{qs.count()} Posts</a>')
     posts_link.short_description = 'posts'
 
 
@@ -67,14 +69,14 @@ class PostAdmin(admin.ModelAdmin):
         if not obj or not obj.id:
             return ''
         qs = obj.enclosures.all()
-        return mark_safe('<a href="/admin/feeds/enclosure/?post__id=%i" target="_blank">%i Enclosures</a>' % (obj.id, qs.count()))
+        return mark_safe(f'<a href="/admin/feeds/enclosure/?post__id={obj.id}" target="_blank">{qs.count()} Enclosures</a>')
     enclosures_link.short_description = 'enclosures'
 
     def media_content_link(self, obj=None):
         if not obj or not obj.id:
             return ''
         qs = obj.media_content.all()
-        return mark_safe('<a href="/admin/feeds/mediacontent/?post__id=%i" target="_blank">%i Media Content</a>' % (obj.id, qs.count()))
+        return mark_safe(f'<a href="/admin/feeds/mediacontent/?post__id={obj.id}" target="_blank">{qs.count()} Media Content</a>')
     media_content_link.short_description = 'media content'
 
 

@@ -47,14 +47,11 @@ def _customize_sanitizer(fp):
 
 
 def get_agent(source_feed):
-
     if source_feed.is_cloudflare:
         agent = random_user_agent()
         logging.info("Using agent: %s", agent)
     else:
-        agent = "{user_agent} (+{server}; Updater; {subs} subscribers)".format(
-            user_agent=settings.FEEDS_USER_AGENT, server=settings.FEEDS_SERVER, subs=source_feed.num_subs)
-
+        agent = f"{settings.FEEDS_USER_AGENT} (+{settings.FEEDS_SERVER}; Updater; {source_feed.num_subs} subscribers)"
     return agent
 
 
@@ -87,9 +84,8 @@ def fix_relative(html, url):
         html = html.replace("src='//", "src='http://")
         html = html.replace('src="//', 'src="http://')
 
-
-        html = html.replace("src='/", "src='%s/" % base)
-        html = html.replace('src="/', 'src="%s/' % base)
+        html = html.replace("src='/", f"src='{base}/")
+        html = html.replace('src="/', f'src="{base}/')
 
     except Exception as ex:
         pass
@@ -111,16 +107,23 @@ def update_feeds(max_feeds=3, output=NullOutput(), sources=None, force=False):
     logging.info("Processing %d.", sources.count())
 
     for src in sources:
-        read_feed(src, output, force=force)
+        try:
+            read_feed(src, output, force=force)
+        except Exception as exc:
+            logging.error('Unable to update source %s.', src)
+            src.last_polled = timezone.now()
+            src.due_poll = timezone.now() + datetime.timedelta(days=1000)
+            src.last_result = str(exc)[:255]
+            src.save()
 
-    # kill shit proxies
-
+    # Kill proxies.
     WebProxy.objects.filter(address='X').delete()
 
 
 def read_feed(source_feed, output=NullOutput(), force=False):
 
     old_interval = source_feed.interval
+    source_feed.last_result = ""
 
 
     was302 = False
@@ -183,12 +186,12 @@ def read_feed(source_feed, output=NullOutput(), force=False):
     elif ret.status_code < 200 or ret.status_code >= 500:
         #errors, impossible return codes
         source_feed.interval += 120
-        source_feed.last_result = "Server error fetching feed (%d)" % ret.status_code
+        source_feed.last_result = f"Server error fetching feed ({ret.status_code})"
     elif ret.status_code == 404:
         #not found
         source_feed.interval += 120
         source_feed.last_result = "The feed could not be found"
-    elif ret.status_code == 403 or ret.status_code == 410: #Forbidden or gone
+    elif ret.status_code in (403, 410): #Forbidden or gone
         if "Cloudflare" in ret.text or ("Server" in ret.headers and "cloudflare" in ret.headers["Server"]):
             if source_feed.is_cloudflare and proxy is not None:
                 # we are already proxied - this proxy on cloudflare's shit list too?
@@ -201,13 +204,11 @@ def read_feed(source_feed, output=NullOutput(), force=False):
                 source_feed.last_result = "Blocked by Cloudflare (grr)"
         else:
             source_feed.last_result = "Feed is no longer accessible."
-            source_feed.live = False
 
 
     elif ret.status_code >= 400 and ret.status_code < 500:
         #treat as bad request
-        source_feed.live = False
-        source_feed.last_result = "Bad request (%d)" % ret.status_code
+        source_feed.last_result = f"Bad request ({ret.status_code})"
     elif ret.status_code == 304:
         #not modified
         source_feed.interval += 10
@@ -219,7 +220,7 @@ def read_feed(source_feed, output=NullOutput(), force=False):
             source_feed.etag = None
             source_feed.last_modified = None
 
-    elif ret.status_code == 301 or ret.status_code == 308: #permenant redirect
+    elif ret.status_code in (301, 308): #permenant redirect
         new_url = ""
         try:
             if "Location" in ret.headers:
@@ -242,7 +243,7 @@ def read_feed(source_feed, output=NullOutput(), force=False):
         except Exception as Ex:
             logging.info("\nError redirecting.")
             source_feed.last_result = "Error redirecting feed to " + new_url
-    elif ret.status_code == 302 or ret.status_code == 303 or ret.status_code == 307: #Temporary redirect
+    elif ret.status_code in (302, 303, 307): #Temporary redirect
         new_url = ""
         was302 = True
         try:
@@ -328,8 +329,7 @@ def read_feed(source_feed, output=NullOutput(), force=False):
             logging.info('BAD')
             source_feed.interval += 120
 
-    if source_feed.interval < 60:
-        source_feed.interval = 60 # no less than 1 hour
+    source_feed.interval = max(source_feed.interval, 60) # no less than 1 hour
     if source_feed.interval > (60 * 24):
         source_feed.interval = (60 * 24) # no more than a day
 
@@ -350,7 +350,7 @@ def import_feed(source_feed, feed_body, content_type, output=NullOutput()):
         (ok, changed) = parse_feed_xml(source_feed, feed_body, output)
     elif "json" in content_type or feed_body[0:1] == b"{":
         logging.info('Parsing JSON...')
-        (ok, changed) = parse_feed_json(source_feed, str(feed_body, "utf-8"), output)
+        (ok, changed) = parse_feed_json(source_feed, str(feed_body, "utf-8"), output) # pylint: disable=unbalanced-tuple-unpacking
     else:
         logging.info('Unknown feed type: %s', content_type)
         ok = False
@@ -795,7 +795,7 @@ def get_proxy(out=NullOutput()):
         find_proxies(out)
         p = WebProxy.objects.first()
 
-    out.write("Proxy: {}".format(str(p)))
+    out.write(f"Proxy: {str(p)}")
 
     return p
 
