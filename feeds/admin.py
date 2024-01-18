@@ -42,6 +42,8 @@ class SourceAdmin(admin.ModelAdmin):
 
 class PostAdmin(admin.ModelAdmin):
 
+    show_full_result_count = False
+
     raw_id_fields = ('source',)
 
     prepopulated_fields = {"slug": ("title",)}
@@ -81,6 +83,8 @@ class PostAdmin(admin.ModelAdmin):
 
 
 class EnclosureAdmin(admin.ModelAdmin):
+
+    show_full_result_count = False
 
     raw_id_fields = ('post',)
 

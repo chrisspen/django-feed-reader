@@ -1,5 +1,6 @@
-sgmllib3k
-feedparser
-BeautifulSoup4
-requests
-pyrfc3339
+sgmllib3k>=1.0.0
+feedparser>=6.0.11
+BeautifulSoup4>=4.12.3
+requests>=2.31.0
+pyrfc3339>=1.1
+Django>=2.2

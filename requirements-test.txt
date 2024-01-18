@@ -1,2 +1,2 @@
-yapf
-pylint
+yapf>=0.40.2
+pylint>=3.0.3
