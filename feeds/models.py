@@ -5,10 +5,13 @@ import logging
 # import sys
 # import email
 
+from django.conf import settings
 from django.db import models
 from django.db.models import Max
 from django.utils.timezone import utc
 from django.utils.text import slugify
+
+from . import settings as _settings # pylint: disable=unused-import
 
 
 class SourceManager(models.Manager):
@@ -84,7 +87,7 @@ class Source(models.Model):
             days = int(dd.days / 2)
 
             col = 255 - days
-            if col < 0: col = 0
+            col = max(col, 0)
 
             css = "background-color:#ff%02x%02x" % (col, col)
 
@@ -106,12 +109,10 @@ class Source(models.Model):
             days = int(dd.days / 2)
 
             red = days
-            if red > 255:
-                red = 255
+            red = min(red, 255)
 
             green = 255 - days
-            if green < 0:
-                green = 0
+            green = max(green, 0)
 
             css = "#%02x%02x00" % (red, green)
 
@@ -143,7 +144,7 @@ class Post(models.Model):
 
     source = models.ForeignKey(Source, on_delete=models.CASCADE, related_name='posts')
     title = models.TextField(blank=True)
-    slug = models.SlugField(max_length=2000, blank=True, null=True)
+    slug = models.SlugField(max_length=2000, blank=True, null=True) # Note, may be limited due to OS filename.
     body = models.TextField()
     link = models.CharField(max_length=2000, blank=True, null=True)
     found = models.DateTimeField(auto_now_add=True)
@@ -188,6 +189,7 @@ class Post(models.Model):
     def save(self, *args, **kwargs):
         if not self.slug:
             self.slug = slugify((self.title or '').strip())
+        self.slug = self.slug[:settings.FEEDS_POST_SLUG_MAXLENGTH]
         print('slug:', len(self.slug))
         print('guid:', len(self.guid or ''))
         print('author:', len(self.author or ''))
@@ -237,9 +239,7 @@ class MediaContent(models.Model):
     duration = models.IntegerField(blank=True, null=True, help_text='Duration of media in seconds.')
 
     class Meta:
-        unique_together = (
-            ('post', 'url'),
-        )
+        unique_together = (('post', 'url'),)
 
     def natural_key(self):
         return (self.url,) + self.post.natural_key()
