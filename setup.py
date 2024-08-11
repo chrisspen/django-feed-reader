@@ -1,3 +1,4 @@
+import os
 import setuptools
 
 CURRENT_DIR = os.path.abspath(os.path.dirname(__file__))
@@ -8,19 +9,22 @@ try:
 except FileNotFoundError:
     long_description = ''
 
+
 def get_reqs(*fns):
     lst = []
     for fn in fns:
-        for package in open(os.path.join(CURRENT_DIR, fn)).readlines():
-            package = package.strip()
-            if not package:
-                continue
-            lst.append(package.strip())
+        with open(os.path.join(CURRENT_DIR, fn), encoding='utf-8') as fin:
+            for package in fin.readlines():
+                package = package.strip()
+                if not package:
+                    continue
+                lst.append(package.strip())
     return lst
+
 
 setuptools.setup(
     name='django-feed-reader',
-    version='0.1.4',
+    version='0.1.5',
     description='An RSS feed reading library for Django.',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -38,4 +42,3 @@ setuptools.setup(
     tests_require=get_reqs('requirements-test.txt'),
     include_package_data=True,
 )
-
