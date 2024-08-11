@@ -2,6 +2,7 @@
 import datetime
 from urllib.parse import urlencode
 import logging
+import uuid
 # import sys
 # import email
 
@@ -158,6 +159,15 @@ class Post(models.Model):
     subtitle_lang = models.CharField(max_length=50, blank=True, null=True)
     subtitle_type = models.CharField(max_length=50, blank=True, null=True)
 
+    uuid = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        blank=False,
+        null=False,
+        unique=True,
+        help_text='A semi-secret ID to use for internal purposes. Do not publicly expose so that it is associated with the name.'
+    )
+
     def natural_key(self):
         return (self.guid,) + self.source.natural_key()
 
@@ -190,10 +200,6 @@ class Post(models.Model):
         if not self.slug:
             self.slug = slugify((self.title or '').strip())
         self.slug = self.slug[:settings.FEEDS_POST_SLUG_MAXLENGTH]
-        print('slug:', len(self.slug))
-        print('guid:', len(self.guid or ''))
-        print('author:', len(self.author or ''))
-        print('image_url:', len(self.image_url or ''))
         super().save(*args, **kwargs)
 
 

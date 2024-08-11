@@ -5,6 +5,7 @@ from django.urls import reverse
 # Register your models here.
 from feeds import models
 
+
 class SourceAdmin(admin.ModelAdmin):
 
     list_display = (
@@ -13,18 +14,14 @@ class SourceAdmin(admin.ModelAdmin):
         'live',
     )
 
-    list_filter = (
-        'live',
-    )
+    list_filter = ('live',)
 
     readonly_fields = (
         'posts_link',
         'last_created',
     )
 
-    search_fields = (
-        'name',
-    )
+    search_fields = ('name',)
 
     prepopulated_fields = {"slug": ("name",)}
 
@@ -37,6 +34,7 @@ class SourceAdmin(admin.ModelAdmin):
         qs = obj.posts.all()
         url = reverse('admin:feeds_post_changelist')
         return mark_safe(f'<a href="{url}?source_id={obj.id}" target="_blank">{qs.count()} Posts</a>')
+
     posts_link.short_description = 'posts'
 
 
@@ -54,7 +52,10 @@ class PostAdmin(admin.ModelAdmin):
         # 'source',
     )
 
-    search_fields = ('title',)
+    search_fields = (
+        'title',
+        'uuid',
+    )
 
     readonly_fields = (
         'enclosures_link',
@@ -62,6 +63,7 @@ class PostAdmin(admin.ModelAdmin):
         'subtitle_href',
         'subtitle_lang',
         'subtitle_type',
+        'uuid',
     )
 
     def lookup_allowed(self, request, model_admin):
@@ -72,6 +74,7 @@ class PostAdmin(admin.ModelAdmin):
             return ''
         qs = obj.enclosures.all()
         return mark_safe(f'<a href="/admin/feeds/enclosure/?post__id={obj.id}" target="_blank">{qs.count()} Enclosures</a>')
+
     enclosures_link.short_description = 'enclosures'
 
     def media_content_link(self, obj=None):
@@ -79,6 +82,7 @@ class PostAdmin(admin.ModelAdmin):
             return ''
         qs = obj.media_content.all()
         return mark_safe(f'<a href="/admin/feeds/mediacontent/?post__id={obj.id}" target="_blank">{qs.count()} Media Content</a>')
+
     media_content_link.short_description = 'media content'
 
 
@@ -109,6 +113,7 @@ class MediaContentAdmin(admin.ModelAdmin):
 
     def lookup_allowed(self, request, model_admin):
         return True
+
 
 admin.site.register(models.Source, SourceAdmin)
 admin.site.register(models.Post, PostAdmin)
