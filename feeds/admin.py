@@ -19,9 +19,13 @@ class SourceAdmin(admin.ModelAdmin):
     readonly_fields = (
         'posts_link',
         'last_created',
+        'uuid',
     )
 
-    search_fields = ('name',)
+    search_fields = (
+        'name',
+        'uuid',
+    )
 
     prepopulated_fields = {"slug": ("name",)}
 

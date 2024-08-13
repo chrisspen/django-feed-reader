@@ -56,6 +56,15 @@ class Source(models.Model):
 
     last_created = models.DateTimeField(blank=True, null=True, editable=False, help_text='Datetime of most recent post.')
 
+    uuid = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        blank=False,
+        null=False,
+        unique=True,
+        help_text='A semi-secret ID to use for internal purposes. Do not publicly expose so that it is associated with the name.'
+    )
+
     def natural_key(self):
         return (self.slug,)
 
