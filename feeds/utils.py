@@ -323,8 +323,7 @@ def read_feed(source_feed, output=NullOutput(), force=False):
             source_feed.interval += 120
 
     source_feed.interval = max(source_feed.interval, 60) # no less than 1 hour
-    if source_feed.interval > (60 * 24):
-        source_feed.interval = (60 * 24) # no more than a day
+    source_feed.interval = min(source_feed.interval, 60 * 24) # no more than a day
 
     logger.info("Updating source_feed.interval from %d to %d.", old_interval, source_feed.interval)
     td = datetime.timedelta(minutes=source_feed.interval)
