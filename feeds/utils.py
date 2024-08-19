@@ -1,7 +1,5 @@
-# import os
 import time
 import datetime
-# from urllib.parse import urljoin
 import hashlib
 from random import choice
 import logging
@@ -15,12 +13,15 @@ from django.db.utils import IntegrityError
 from feeds.models import Source, Enclosure, Post, WebProxy, MediaContent
 
 import feedparser
+from feedparser.sanitizer import _sanitize_html
 
 # from bs4 import BeautifulSoup
 
 import requests
 
 import pyrfc3339
+
+logger = logging.getLogger(__name__)
 
 
 class NullOutput:
@@ -31,12 +32,7 @@ class NullOutput:
 
 def _customize_sanitizer(fp):
 
-
-    bad_attributes = [
-        "align",
-        "valign",
-        "hspace"
-    ]
+    bad_attributes = ["align", "valign", "hspace"]
 
     for item in bad_attributes:
         try:
@@ -72,11 +68,8 @@ def random_user_agent():
     ])
 
 
-
 def fix_relative(html, url):
-
     """ this is fucking cheesy """
-
 
     try:
         base = "/".join(url.split("/")[:3])
@@ -125,7 +118,6 @@ def read_feed(source_feed, output=NullOutput(), force=False):
     old_interval = source_feed.interval
     source_feed.last_result = ""
 
-
     was302 = False
 
     logging.info("\n------------------------------\n")
@@ -143,8 +135,8 @@ def read_feed(source_feed, output=NullOutput(), force=False):
             proxy = get_proxy(output)
             if proxy.address != "X":
                 proxies = {
-                  'http': "http://" + proxy.address,
-                  'https': "https://" + proxy.address,
+                    'http': "http://" + proxy.address,
+                    'https': "https://" + proxy.address,
                 }
         except Exception:
             pass
@@ -168,18 +160,15 @@ def read_feed(source_feed, output=NullOutput(), force=False):
         source_feed.last_result = ("Fetch error:" + str(ex))[:255]
         source_feed.status_code = 0
 
-
         if proxy:
             source_feed.lastResult = "Proxy failed. Next retry will use new proxy"
-            source_feed.status_code = 1  # this will stop us increasing the interval
+            source_feed.status_code = 1 # this will stop us increasing the interval
 
             logging.info("Burning the proxy.")
             proxy.delete()
             source_feed.interval /= 2
 
-
-
-    if ret is None and source_feed.status_code == 1:   # er ??
+    if ret is None and source_feed.status_code == 1: # er ??
         pass
     elif ret is None or source_feed.status_code == 0:
         source_feed.interval += 120
@@ -204,7 +193,6 @@ def read_feed(source_feed, output=NullOutput(), force=False):
                 source_feed.last_result = "Blocked by Cloudflare (grr)"
         else:
             source_feed.last_result = "Feed is no longer accessible."
-
 
     elif ret.status_code >= 400 and ret.status_code < 500:
         #treat as bad request
@@ -231,9 +219,7 @@ def read_feed(source_feed, output=NullOutput(), force=False):
 
                     base = "/".join(source_feed.feed_url.split("/")[:3])
 
-
                     new_url = base + new_url
-
 
                 source_feed.feed_url = new_url
 
@@ -258,7 +244,6 @@ def read_feed(source_feed, output=NullOutput(), force=False):
 
                 new_url = start + end + new_url
 
-
             ret = requests.get(new_url, headers=headers, allow_redirects=True, timeout=20)
             source_feed.status_code = ret.status_code
             source_feed.last_result = "Temporary Redirect to " + new_url
@@ -280,9 +265,8 @@ def read_feed(source_feed, output=NullOutput(), force=False):
 
                 source_feed.last_result = "Temporary Redirect to " + new_url + " since " + source_feed.last_302_start.strftime("%d %B")
 
-
         except Exception as ex:
-            source_feed.last_result = "Failed Redirection to " + new_url +  " " + str(ex)
+            source_feed.last_result = "Failed Redirection to " + new_url + " " + str(ex)
             source_feed.interval += 60
 
     #NOT ELIF, WE HAVE TO START THE IF AGAIN TO COPE WTIH 302
@@ -292,7 +276,6 @@ def read_feed(source_feed, output=NullOutput(), force=False):
         # great!
         ok = True
         changed = False
-
 
         if was302:
             source_feed.etag = None
@@ -341,7 +324,6 @@ def read_feed(source_feed, output=NullOutput(), force=False):
 
 def import_feed(source_feed, feed_body, content_type, output=NullOutput()):
 
-
     ok = False
     changed = False
 
@@ -381,7 +363,7 @@ def clean_length(v):
         # Process j:m:s format?
         try:
             _hour, _min, _sec = (v or '').split(':')
-            length = int(_hour)*60*60 + int(_min)*60 + int(_sec)
+            length = int(_hour) * 60 * 60 + int(_min) * 60 + int(_sec)
         except ValueError:
             length = 0
     if length > 2**31:
@@ -413,7 +395,7 @@ def parse_feed_xml(source_feed, feed_content, output):
     if ok:
         try:
             if not source_feed.name:
-                source_feed.name = f.feed.title
+                source_feed.name = _sanitize_html(f.feed.title, "utf-8", 'text/html')
         except Exception as ex:
             pass
 
@@ -422,12 +404,10 @@ def parse_feed_xml(source_feed, feed_content, output):
         except Exception as ex:
             pass
 
-
         try:
             source_feed.image_url = f.feed.image.href
         except:
             pass
-
 
         # either of these is fine, prefer description over summary
         # also feedparser will give us itunes:summary etc if there
@@ -440,7 +420,6 @@ def parse_feed_xml(source_feed, feed_content, output):
             source_feed.description = f.feed.description
         except:
             pass
-
 
         #logging.info(entries)
         entries.reverse() # Entries are typically in reverse chronological order - put them in right order
@@ -465,7 +444,6 @@ def parse_feed_xml(source_feed, feed_content, output):
             if hasattr(e, "description"):
                 if len(e.description) > len(body):
                     body = e.description
-
 
             body = fix_relative(body, source_feed.site_url)
 
@@ -498,14 +476,15 @@ def parse_feed_xml(source_feed, feed_content, output):
                 pass
 
             force_set_created = True
-            try:
-                logging.info('Raw created date: %s', e.published_parsed)
-                post_defaults['created'] = datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=timezone.utc)
-                logging.info('Normalized created date: %s', post_defaults['created'])
-            except Exception as ex:
-                force_set_created = False
-                logging.exception("Unable to parse published timestamp.")
-                post_defaults['created'] = timezone.now()
+            post_defaults['created'] = timezone.now()
+            if 'published_parsed' in e:
+                try:
+                    logging.info('Raw created date: %s', e.published_parsed)
+                    post_defaults['created'] = datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=timezone.utc)
+                    logging.info('Normalized created date: %s', post_defaults['created'])
+                except Exception as ex:
+                    force_set_created = False
+                    logging.exception("Unable to parse published timestamp.")
 
             try:
                 post_defaults['author'] = e.author
@@ -538,24 +517,21 @@ def parse_feed_xml(source_feed, feed_content, output):
                     if enc_href == ee.href and ee.href not in seen_files:
                         found_enclosure = True
                         ee.length = clean_length(pe.get("length"))
-                        typ = pe.get("type", None) or "audio/mpeg"  # we are assuming podcasts here but that's probably not safe
+                        typ = pe.get("type", None) or "audio/mpeg" # we are assuming podcasts here but that's probably not safe
                         ee.type = typ
                         ee.save()
                         break
 
-                # DANGEROUS! If there's a glitch in the feed that temporarily removes all enclosures, this will delete everything!
-                # if not found_enclosure:
-                    # ee.delete()
-
                 seen_files.append(ee.href)
 
-            for pe in e["enclosures"]:
-                enc_href = pe.get('href') or pe.get('url')
-                if enc_href and enc_href not in seen_files and not p.enclosures.all().exists():
-                    length = clean_length(pe.get("length"))
-                    typ = pe.get("type") or "audio/mpeg"
-                    ee = Enclosure(post=p, href=enc_href[:2000], length=length, type=typ)
-                    ee.save()
+            if 'enclosures' in e:
+                for pe in e['enclosures']:
+                    enc_href = pe.get('href') or pe.get('url')
+                    if enc_href and enc_href not in seen_files and not p.enclosures.all().exists():
+                        length = clean_length(pe.get("length"))
+                        typ = pe.get("type") or "audio/mpeg"
+                        ee = Enclosure(post=p, href=enc_href[:2000], length=length, type=typ)
+                        ee.save()
 
             if 'media_subtitle' in e:
                 p.subtitle_href = e['media_subtitle'].get('href')
@@ -614,30 +590,28 @@ def parse_feed_json(source_feed, feed_content, output):
 
     if ok:
 
-
         if "expired" in f and f["expired"]:
             # This feed says it is done
             # TODO: permanently disable
             # for now source_feed.interval to max
-            source_feed.interval = (24*3*60)
+            source_feed.interval = (24 * 3 * 60)
             source_feed.last_result = "This feed has expired"
             return (False, False, source_feed.interval)
 
         try:
             source_feed.site_url = f["home_page_url"]
             if not source_feed.name:
-                source_feed.name = f["title"]
+                source_feed.name = _sanitize_html(f["title"], "utf-8", 'text/html')
         except Exception as ex:
             pass
 
-
         if "description" in f:
             _customize_sanitizer(feedparser)
-            source_feed.description = feedparser._sanitizeHTML(f["description"], "utf-8", 'text/html')
+            source_feed.description = _sanitize_html(f["description"], "utf-8", 'text/html')
 
         _customize_sanitizer(feedparser)
         if not source_feed.name:
-            source_feed.name = feedparser._sanitizeHTML(source_feed.name, "utf-8", 'text/html')
+            source_feed.name = _sanitize_html(source_feed.name, "utf-8", 'text/html')
 
         if "icon" in f:
             source_feed.image_url = f["icon"]
@@ -679,9 +653,9 @@ def parse_feed_json(source_feed, feed_content, output):
 
             # borrow the RSS parser's sanitizer
             _customize_sanitizer(feedparser)
-            body = feedparser._sanitizeHTML(body, "utf-8", 'text/html') # TODO: validate charset ??
+            body = _sanitize_html(body, "utf-8", 'text/html') # TODO: validate charset ??
             _customize_sanitizer(feedparser)
-            title = feedparser._sanitizeHTML(title, "utf-8", 'text/html') # TODO: validate charset ??
+            title = _sanitize_html(title, "utf-8", 'text/html') # TODO: validate charset ??
             # no other fields are ever marked as |safe in the templates
 
             if "banner_image" in e:
@@ -689,7 +663,6 @@ def parse_feed_json(source_feed, feed_content, output):
 
             if "image" in e:
                 p.image_url = e["image"]
-
 
             try:
                 p.link = e["url"]
@@ -700,8 +673,8 @@ def parse_feed_json(source_feed, feed_content, output):
 
             try:
                 p.created = pyrfc3339.parse(e["date_published"])
-            except Exception as ex:
-                logging.exception('Unable to parse published date.')
+            except Exception as exc:
+                logger.warning('Entry %s has a missing or invalid "date_published". Defaulting to now(). %s', e, exc)
                 p.created = timezone.now()
 
             p.guid = guid
@@ -711,7 +684,6 @@ def parse_feed_json(source_feed, feed_content, output):
                 p.author = ""
 
             p.save()
-
 
             try:
                 seen_files = []
@@ -727,10 +699,6 @@ def parse_feed_json(source_feed, feed_content, output):
                                 ee.type = typ
                                 ee.save()
                                 break
-
-                    # DANGEROUS! This deletes everything if a glitch in the feed removes enclosures.
-                    # if not found_enclosure:
-                        # ee.delete()
 
                     seen_files.append(ee.href)
 
@@ -798,7 +766,6 @@ def get_proxy(out=NullOutput()):
     out.write(f"Proxy: {str(p)}")
 
     return p
-
 
 
 def find_proxies(out=NullOutput()):

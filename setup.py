@@ -38,7 +38,13 @@ setuptools.setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
+    package_data={
+        'feeds': [
+            'testdata/*.*',
+        ],
+    },
     install_requires=get_reqs('requirements.txt'),
     tests_require=get_reqs('requirements-test.txt'),
     include_package_data=True,
+    zip_safe=False,
 )

@@ -1,18 +1,18 @@
-# import time
 import datetime
-from urllib.parse import urlencode
 import logging
 import uuid
-# import sys
-# import email
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.db import models
 from django.db.models import Max
 from django.utils.timezone import utc
 from django.utils.text import slugify
+from django.utils import timezone
 
 from . import settings as _settings # pylint: disable=unused-import
+
+logger = logging.getLogger(__name__)
 
 
 class SourceManager(models.Manager):
@@ -35,14 +35,15 @@ class Source(models.Model):
     description = models.TextField(null=True, blank=True)
 
     last_polled = models.DateTimeField(max_length=255, blank=True, null=True)
-    due_poll = models.DateTimeField(default=datetime.datetime(1900, 1, 1)) # default to distant past to put new sources to front of queue
+    due_poll = models.DateTimeField(default=timezone.make_aware(datetime.datetime(1900, 1, 1))) # default to distant past to put new sources to front of queue
+
     etag = models.CharField(max_length=255, blank=True, null=True)
     last_modified = models.CharField(max_length=255, blank=True, null=True) # just pass this back and forward between server and me , no need to parse
 
     last_result = models.CharField(max_length=255, blank=True, null=True)
     interval = models.PositiveIntegerField(default=400)
-    last_success = models.DateTimeField(null=True, default=datetime.datetime(1900, 1, 1))
-    last_change = models.DateTimeField(null=True, default=datetime.datetime(1900, 1, 1))
+    last_success = models.DateTimeField(null=True, default=timezone.make_aware(datetime.datetime(1900, 1, 1)))
+    last_change = models.DateTimeField(null=True, default=timezone.make_aware(datetime.datetime(1900, 1, 1)))
     live = models.BooleanField(default=True)
     status_code = models.PositiveIntegerField(default=0)
     last_302_url = models.CharField(max_length=1000, null=True, blank=True)
