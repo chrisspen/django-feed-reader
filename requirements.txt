@@ -4,3 +4,4 @@ BeautifulSoup4>=4.12.3
 requests>=2.31.0
 pyrfc3339>=1.1
 Django>=2.2
+bleach>=6.1.0

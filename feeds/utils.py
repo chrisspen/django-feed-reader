@@ -5,6 +5,8 @@ from random import choice
 import logging
 import json
 
+import bleach
+
 from django.db.models import Q
 from django.utils import timezone
 from django.conf import settings
@@ -42,10 +44,18 @@ def _customize_sanitizer(fp):
             logging.debug("Could not remove %s", item)
 
 
+def sanitize_html(html_content):
+    allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + ['img']
+    allowed_attributes = {
+        'img': ['src', 'alt', 'title', 'width', 'height'],
+    }
+    return bleach.clean(html_content, tags=allowed_tags, attributes=allowed_attributes)
+
+
 def get_agent(source_feed):
     if source_feed.is_cloudflare:
         agent = random_user_agent()
-        logging.info("Using agent: %s", agent)
+        logger.info("Using agent: %s", agent)
     else:
         agent = f"{settings.FEEDS_USER_AGENT} (+{settings.FEEDS_SERVER}; Updater; {source_feed.num_subs} subscribers)"
     return agent
@@ -93,11 +103,11 @@ def update_feeds(max_feeds=3, output=NullOutput(), sources=None, force=False):
     else:
         todo = sources
 
-    logging.info("Queue size is %i.", todo.count())
+    logger.info("Queue size is %i.", todo.count())
 
     sources = todo.order_by("due_poll")[:max_feeds]
 
-    logging.info("Processing %d.", sources.count())
+    logger.info("Processing %d.", sources.count())
 
     for src in sources:
         try:
@@ -114,13 +124,13 @@ def update_feeds(max_feeds=3, output=NullOutput(), sources=None, force=False):
 
 
 def read_feed(source_feed, output=NullOutput(), force=False):
+    logger.info('-' * 80)
+    logger.info('Reading feed: %s', source_feed)
 
     old_interval = source_feed.interval
     source_feed.last_result = ""
 
     was302 = False
-
-    logging.info("\n------------------------------\n")
 
     source_feed.last_polled = timezone.now()
 
@@ -147,14 +157,14 @@ def read_feed(source_feed, output=NullOutput(), force=False):
         if source_feed.last_modified:
             headers["If-Modified-Since"] = str(source_feed.last_modified)
 
-    logging.info("Fetching %s.", source_feed.feed_url)
+    logger.info("Fetching %s.", source_feed.feed_url)
 
     ret = None
     try:
         ret = requests.get(source_feed.feed_url, headers=headers, allow_redirects=False, timeout=20, proxies=proxies)
         source_feed.status_code = ret.status_code
         source_feed.last_result = "Unhandled Case"
-        logging.info('Response: %s', str(ret))
+        logger.info('Response: %s', str(ret))
     except Exception as ex:
         logging.exception("Fetch feed error from source %s url %s: %s", source_feed.id, source_feed.feed_url, ex)
         source_feed.last_result = ("Fetch error:" + str(ex))[:255]
@@ -164,7 +174,7 @@ def read_feed(source_feed, output=NullOutput(), force=False):
             source_feed.lastResult = "Proxy failed. Next retry will use new proxy"
             source_feed.status_code = 1 # this will stop us increasing the interval
 
-            logging.info("Burning the proxy.")
+            logger.info("Burning the proxy.")
             proxy.delete()
             source_feed.interval /= 2
 
@@ -185,7 +195,7 @@ def read_feed(source_feed, output=NullOutput(), force=False):
             if source_feed.is_cloudflare and proxy is not None:
                 # we are already proxied - this proxy on cloudflare's shit list too?
                 proxy.delete()
-                logging.info("Proxy seems to also be blocked, burning.")
+                logger.info("Proxy seems to also be blocked, burning.")
                 source_feed.interval /= 2
                 source_feed.lastResult = "Proxy kind of worked but still got cloudflared."
             else:
@@ -227,7 +237,7 @@ def read_feed(source_feed, output=NullOutput(), force=False):
             else:
                 source_feed.last_result = "Feed has moved but no location provided"
         except Exception as Ex:
-            logging.info("\nError redirecting.")
+            logger.info("\nError redirecting.")
             source_feed.last_result = "Error redirecting feed to " + new_url
     elif ret.status_code in (302, 303, 307): #Temporary redirect
         new_url = ""
@@ -290,33 +300,33 @@ def read_feed(source_feed, output=NullOutput(), force=False):
             except Exception as ex:
                 source_feed.last_modified = None
 
-        logging.info("Etag:%s", source_feed.etag)
-        logging.info("Last Mod:%s", source_feed.last_modified)
+        logger.info("Etag:%s", source_feed.etag)
+        logger.info("Last Mod:%s", source_feed.last_modified)
 
         content_type = "Not Set"
         if "Content-Type" in ret.headers:
             content_type = ret.headers["Content-Type"]
-        logging.info('content_type: %s', content_type)
+        logger.info('content_type: %s', content_type)
 
         (ok, changed) = import_feed(source_feed=source_feed, feed_body=ret.content, content_type=content_type, output=output)
         if ok and changed:
-            logging.info('OK-changed')
+            logger.info('OK-changed')
             source_feed.interval /= 2
             source_feed.last_result = " OK (updated)" #and temporary redirects
             source_feed.last_change = timezone.now()
         elif ok:
-            logging.info('OK-unchanged')
+            logger.info('OK-unchanged')
             source_feed.last_result = "OK"
             source_feed.interval += 20 # we slow down feeds a little more that don't send headers we can use
         else:
-            logging.info('BAD')
+            logger.info('BAD')
             source_feed.interval += 120
 
     source_feed.interval = max(source_feed.interval, 60) # no less than 1 hour
     if source_feed.interval > (60 * 24):
         source_feed.interval = (60 * 24) # no more than a day
 
-    logging.info("Updating source_feed.interval from %d to %d.", old_interval, source_feed.interval)
+    logger.info("Updating source_feed.interval from %d to %d.", old_interval, source_feed.interval)
     td = datetime.timedelta(minutes=source_feed.interval)
     source_feed.due_poll = timezone.now() + td
     source_feed.save()
@@ -328,13 +338,13 @@ def import_feed(source_feed, feed_body, content_type, output=NullOutput()):
     changed = False
 
     if "xml" in content_type or "html" in content_type or feed_body[0:1] == b"<":
-        logging.info('Parsing XML...')
+        logger.info('Parsing XML...')
         (ok, changed) = parse_feed_xml(source_feed, feed_body, output)
     elif "json" in content_type or feed_body[0:1] == b"{":
-        logging.info('Parsing JSON...')
+        logger.info('Parsing JSON...')
         (ok, changed) = parse_feed_json(source_feed, str(feed_body, "utf-8"), output) # pylint: disable=unbalanced-tuple-unpacking
     else:
-        logging.info('Unknown feed type: %s', content_type)
+        logger.info('Unknown feed type: %s', content_type)
         ok = False
         source_feed.last_result = "Unknown Feed Type: " + content_type
 
@@ -372,6 +382,7 @@ def clean_length(v):
 
 
 def parse_feed_xml(source_feed, feed_content, output):
+    logger.info('Parsing feed XML.')
 
     ok = True
     changed = False
@@ -421,7 +432,6 @@ def parse_feed_xml(source_feed, feed_content, output):
         except:
             pass
 
-        #logging.info(entries)
         entries.reverse() # Entries are typically in reverse chronological order - put them in right order
         for e in entries:
 
@@ -446,6 +456,7 @@ def parse_feed_xml(source_feed, feed_content, output):
                     body = e.description
 
             body = fix_relative(body, source_feed.site_url)
+            body = sanitize_html(body)
 
             guid = None
             try:
@@ -479,9 +490,9 @@ def parse_feed_xml(source_feed, feed_content, output):
             post_defaults['created'] = timezone.now()
             if 'published_parsed' in e:
                 try:
-                    logging.info('Raw created date: %s', e.published_parsed)
+                    logger.info('Raw created date: %s', e.published_parsed)
                     post_defaults['created'] = datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=timezone.utc)
-                    logging.info('Normalized created date: %s', post_defaults['created'])
+                    logger.info('Normalized created date: %s', post_defaults['created'])
                 except Exception as ex:
                     force_set_created = False
                     logging.exception("Unable to parse published timestamp.")
@@ -495,7 +506,7 @@ def parse_feed_xml(source_feed, feed_content, output):
             post_defaults.setdefault('index', 0)
             post_defaults.setdefault('body', ' ')
 
-            logging.info('Getting or creating post %s %s for source %s...', post_defaults['title'], guid, source_feed)
+            logger.info('Getting or creating post %s %s for source %s...', post_defaults['title'], guid, source_feed)
             try:
                 p, changed = Post.objects.get_or_create(source=source_feed, guid=guid, defaults=post_defaults)
                 if force_set_created:
@@ -567,13 +578,38 @@ def parse_feed_xml(source_feed, feed_content, output):
     return (ok, changed)
 
 
+def parse_size_in_bytes(s):
+    """
+    Converts various representations of bytes into an integer.
+
+    Case 1:
+
+        ##########
+
+    Case 2:
+
+        {#: ########}
+    """
+    if not s:
+        return 0
+    if isinstance(s, int):
+        return s
+    if isinstance(s, dict):
+        return sum(map(int, s.values()))
+    if isinstance(s, str):
+        return int(s)
+    raise NotImplementedError
+
+
 def parse_feed_json(source_feed, feed_content, output):
+    logger.info('Parsing feed JSON.')
 
     ok = True
     changed = False
 
     try:
         f = json.loads(feed_content)
+        logger.info('Found %s items.', len(f.get('items', [])))
         entries = f['items']
         if entries:
             source_feed.last_success = timezone.now() #in case we start auto unsubscribing long dead feeds
@@ -583,6 +619,7 @@ def parse_feed_json(source_feed, feed_content, output):
             ok = False
 
     except Exception as ex:
+        logger.exception('Unable to parse JSON feed!')
         source_feed.last_result = "Feed Parse Error"
         entries = []
         source_feed.interval += 120
@@ -637,10 +674,10 @@ def parse_feed_json(source_feed, feed_content, output):
                     guid = m.hexdigest()
 
             try:
-                p = Post.objects.filter(source=source_feed).filter(guid=guid)[0]
-                logging.info("EXISTING: %s", guid)
-            except Exception as ex:
-                logging.info("Creating new post %s.", guid)
+                p = Post.objects.get(source=source_feed, guid=guid)
+                logger.info("EXISTING: %s", guid)
+            except Post.DoesNotExist:
+                logger.info("Creating new post %s.", guid)
                 p = Post(index=0, body=' ')
                 p.found = timezone.now()
                 changed = True
@@ -648,7 +685,7 @@ def parse_feed_json(source_feed, feed_content, output):
 
             try:
                 title = e["title"]
-            except Exception as ex:
+            except KeyError:
                 title = ""
 
             # borrow the RSS parser's sanitizer
@@ -685,45 +722,42 @@ def parse_feed_json(source_feed, feed_content, output):
 
             p.save()
 
-            try:
-                seen_files = []
-                for ee in list(p.enclosures.all()):
-                    # check existing enclosure is still there
-                    found_enclosure = False
-                    if "attachments" in e:
-                        for pe in e["attachments"]:
-                            if pe["url"] == ee.href and ee.href not in seen_files:
-                                found_enclosure = True
-                                ee.length = int(pe.get("size_in_bytes", None) or 0)
-                                typ = pe.get("mime_type", None) or "audio/mpeg"
-                                ee.type = typ
-                                ee.save()
-                                break
-
-                    seen_files.append(ee.href)
-
+            seen_files = []
+            for ee in list(p.enclosures.all()):
+                # check existing enclosure is still there
+                found_enclosure = False
                 if "attachments" in e:
                     for pe in e["attachments"]:
-                        try:
-                            # Since many RSS feeds embed trackers into their URL that constantly change, yet almost always only include a single enclosure,
-                            # we'll only create a new enclosure when we see a new url if there are no enclosure records created yet.
-                            # This is a most robust way of preventing logical duplicates due to tracker URL changes then by trying to predict and strip out
-                            # all known tracker prefixes.
-                            if pe["url"] not in seen_files and not p.enclosures.all().exists():
-                                length = int(pe.get("size_in_bytes", None) or 0)
-                                typ = pe.get("mime_type", None) or "audio/mpeg"
-                                ee = Enclosure(post=p, href=pe["url"], length=length, type=typ)
-                                ee.save()
-                        except Exception as ex:
-                            pass
-            except Exception as ex:
-                logging.exception("No enclosures")
+                        if pe["url"] == ee.href and ee.href not in seen_files:
+                            found_enclosure = True
+                            ee.length = parse_size_in_bytes(pe.get("size_in_bytes", None))
+                            typ = pe.get("mime_type", None) or "audio/mpeg"
+                            ee.type = typ
+                            ee.save()
+                            break
+                seen_files.append(ee.href)
+
+            if "attachments" in e:
+                logger.debug('Found %s attachments.', len(e["attachments"]))
+                for pe in e["attachments"]:
+                    try:
+                        # Since many RSS feeds embed trackers into their URL that constantly change, yet almost always only include a single enclosure,
+                        # we'll only create a new enclosure when we see a new url if there are no enclosure records created yet.
+                        # This is a most robust way of preventing logical duplicates due to tracker URL changes then by trying to predict and strip out
+                        # all known tracker prefixes.
+                        if pe["url"] not in seen_files and not p.enclosures.all().exists():
+                            length = parse_size_in_bytes(pe.get("size_in_bytes", None))
+                            typ = pe.get("mime_type", None) or "audio/mpeg"
+                            ee = Enclosure(post=p, href=pe["url"], length=length, type=typ)
+                            ee.save()
+                    except Exception as ex:
+                        logger.exception('Unable to load attachment!')
 
             try:
                 p.body = body
                 p.save()
             except Exception as ex:
-                logging.exception('Unable to save body A2.')
+                logging.exception('Unable to save body!')
 
     return (ok, changed)
 
@@ -770,7 +804,7 @@ def get_proxy(out=NullOutput()):
 
 def find_proxies(out=NullOutput()):
 
-    logging.info("Looking for proxies.")
+    logger.info("Looking for proxies.")
 
     try:
         req = requests.get("https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list.txt", timeout=30)
@@ -795,4 +829,4 @@ def find_proxies(out=NullOutput()):
         # to stop infinite loops we will insert duff proxys now
         for i in range(20):
             WebProxy(address="X").save()
-        logging.info("No proxies found.")
+        logger.info("No proxies found.")

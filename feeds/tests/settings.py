@@ -94,3 +94,43 @@ TEMPLATES = [
         },
     },
 ]
+
+LOGLEVEL = os.environ.get('LOGLEVEL', 'INFO').upper()
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '%(levelname)s %(asctime)s %(module)s %(process)d %(thread)d %(message)s'
+        },
+        'simple': {
+            'format': '%(levelname)s %(message)s'
+        },
+        'console': {
+            'format': '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
+        },
+        'coloredlogs': {
+            '()': 'coloredlogs.ColoredFormatter',
+            'fmt': '[%(asctime)s] %(name)s %(levelname)s %(message)s',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'coloredlogs'
+        },
+    },
+    'loggers': {
+        '': {
+            'level': LOGLEVEL,
+            'handlers': ['console']
+        },
+        # Disable default Django logger which sends a sub-standard error email.
+        # Our exception middleware will send the error email.
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    },
+}
