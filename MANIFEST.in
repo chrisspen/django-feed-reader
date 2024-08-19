@@ -1,3 +1,6 @@
 include README.md
 recursive-include feeds/static *
 recursive-include feeds/templates *
+recursive-include feeds/testdata *
+include requirements.txt
+include requirements-test.txt

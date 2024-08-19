@@ -65,6 +65,10 @@ class Source(models.Model):
         help_text='A semi-secret ID to use for internal purposes. Do not publicly expose so that it is associated with the name.'
     )
 
+    lucene_index_target = models.BooleanField(default=False, help_text='The index state we want. True=indexed for search.')
+
+    lucene_index_actual = models.BooleanField(default=False, editable=False, help_text='The index state we currently have. True=indexed for search.')
+
     def natural_key(self):
         return (self.slug,)
 
@@ -176,6 +180,10 @@ class Post(models.Model):
         unique=True,
         help_text='A semi-secret ID to use for internal purposes. Do not publicly expose so that it is associated with the name.'
     )
+
+    lucene_index_target = models.BooleanField(default=False, help_text='The index state we want. True=indexed for search.')
+
+    lucene_index_actual = models.BooleanField(default=False, editable=False, help_text='The index state we currently have. True=indexed for search.')
 
     def natural_key(self):
         return (self.guid,) + self.source.natural_key()
