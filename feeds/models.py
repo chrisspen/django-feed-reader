@@ -70,6 +70,11 @@ class Source(models.Model):
 
     lucene_index_actual = models.BooleanField(default=False, editable=False, help_text='The index state we currently have. True=indexed for search.')
 
+    class Meta:
+        indexes = [
+            models.Index(fields=['lucene_index_target', 'lucene_index_actual']),
+        ]
+
     def natural_key(self):
         return (self.slug,)
 
@@ -186,6 +191,16 @@ class Post(models.Model):
 
     lucene_index_actual = models.BooleanField(default=False, editable=False, help_text='The index state we currently have. True=indexed for search.')
 
+    class Meta:
+        ordering = ["index"]
+        unique_together = (
+            ('source', 'slug'),
+            ('source', 'guid'),
+        )
+        indexes = [
+            models.Index(fields=['lucene_index_target', 'lucene_index_actual']),
+        ]
+
     def natural_key(self):
         return (self.guid,) + self.source.natural_key()
 
@@ -206,13 +221,6 @@ class Post(models.Model):
     @property
     def recast_link(self):
         return "/post/%d/" % self.id
-
-    class Meta:
-        ordering = ["index"]
-        unique_together = (
-            ('source', 'slug'),
-            ('source', 'guid'),
-        )
 
     def save(self, *args, **kwargs):
         if not self.slug:
