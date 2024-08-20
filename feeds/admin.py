@@ -19,6 +19,7 @@ class SourceAdmin(admin.ModelAdmin):
     readonly_fields = (
         'posts_link',
         'last_created',
+        'lucene_index_actual',
         'uuid',
     )
 
@@ -67,6 +68,7 @@ class PostAdmin(admin.ModelAdmin):
         'subtitle_href',
         'subtitle_lang',
         'subtitle_type',
+        'lucene_index_actual',
         'uuid',
     )
 
