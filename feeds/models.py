@@ -6,13 +6,14 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.db import models
 from django.db.models import Max
-from django.utils.timezone import utc
 from django.utils.text import slugify
 from django.utils import timezone
 
 from . import settings as _settings # pylint: disable=unused-import
 
 logger = logging.getLogger(__name__)
+
+utc = datetime.timezone.utc
 
 
 class SourceManager(models.Manager):
@@ -139,9 +140,16 @@ class Source(models.Model):
         return css
 
     def save(self, *args, **kwargs):
+        old = None
+        if self.pk:
+            old = type(self).objects.get(pk=self.pk)
         if not self.slug:
             self.slug = slugify((self.name or '').strip())
         super().save(*args, **kwargs)
+
+        # Propagate index target to this source's posts.
+        if old and old.lucene_index_target != self.lucene_index_target:
+            self.posts.update(lucene_index_target=self.lucene_index_target)
 
         agg = self.posts.all().aggregate(Max('created'))
         if agg:
@@ -193,10 +201,10 @@ class Post(models.Model):
 
     class Meta:
         ordering = ["index"]
-        unique_together = (
-            ('source', 'slug'),
-            ('source', 'guid'),
-        )
+        constraints = [
+            models.UniqueConstraint(fields=['source', 'slug'], name='unique_source_slug'),
+            models.UniqueConstraint(fields=['source', 'guid'], name='unique_source_guid'),
+        ]
         indexes = [
             models.Index(fields=['lucene_index_target', 'lucene_index_actual']),
         ]
@@ -223,6 +231,11 @@ class Post(models.Model):
         return "/post/%d/" % self.id
 
     def save(self, *args, **kwargs):
+
+        # Inherit index target from source.
+        if not self.pk:
+            self.lucene_index_target = self.source.lucene_index_target
+
         if not self.slug:
             self.slug = slugify((self.title or '').strip())
         self.slug = self.slug[:settings.FEEDS_POST_SLUG_MAXLENGTH]
@@ -271,7 +284,9 @@ class MediaContent(models.Model):
     duration = models.IntegerField(blank=True, null=True, help_text='Duration of media in seconds.')
 
     class Meta:
-        unique_together = (('post', 'url'),)
+        constraints = [
+            models.UniqueConstraint(fields=['post', 'url'], name='unique_post_url'),
+        ]
 
     def natural_key(self):
         return (self.url,) + self.post.natural_key()
