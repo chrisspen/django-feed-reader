@@ -17,13 +17,13 @@ from feeds.models import Source, Enclosure, Post, WebProxy, MediaContent
 import feedparser
 from feedparser.sanitizer import _sanitize_html
 
-# from bs4 import BeautifulSoup
-
 import requests
 
 import pyrfc3339
 
 logger = logging.getLogger(__name__)
+
+utc = datetime.timezone.utc
 
 
 class NullOutput:
@@ -490,7 +490,7 @@ def parse_feed_xml(source_feed, feed_content, output):
             if 'published_parsed' in e:
                 try:
                     logger.info('Raw created date: %s', e.published_parsed)
-                    post_defaults['created'] = datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=timezone.utc)
+                    post_defaults['created'] = datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=utc)
                     logger.info('Normalized created date: %s', post_defaults['created'])
                 except Exception as ex:
                     force_set_created = False
