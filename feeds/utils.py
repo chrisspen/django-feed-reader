@@ -45,9 +45,10 @@ def _customize_sanitizer(fp):
 
 
 def sanitize_html(html_content):
-    allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + ['img']
+    allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + ['img', 'p', 'strong', 'br']
     allowed_attributes = {
         'img': ['src', 'alt', 'title', 'width', 'height'],
+        'a': ['href'],
     }
     return bleach.clean(html_content, tags=allowed_tags, attributes=allowed_attributes)
 

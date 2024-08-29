@@ -10,7 +10,7 @@ from .base import BaseTests
 
 
 @requests_mock.Mocker()
-class HTTPStuffTests(BaseTests):
+class Tests(BaseTests):
 
     def test_fucking_cloudflare(self, mock):
 

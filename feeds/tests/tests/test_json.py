@@ -7,7 +7,7 @@ from .base import BaseTests
 
 
 @requests_mock.Mocker()
-class JSONFeedTests(BaseTests):
+class Tests(BaseTests):
 
     def test_simple_json(self, mock):
 

@@ -1,3 +1,4 @@
+import logging
 import requests_mock
 
 from feeds.models import Source
@@ -5,9 +6,11 @@ from feeds.utils import read_feed
 
 from .base import BaseTests
 
+logger = logging.getLogger(__name__)
+
 
 @requests_mock.Mocker()
-class XMLFeedsTests(BaseTests):
+class Tests(BaseTests):
 
     def test_simple_xml(self, mock):
 
@@ -86,3 +89,21 @@ class XMLFeedsTests(BaseTests):
         self.assertTrue("<img" in body)
         self.assertFalse("align=" in body)
         self.assertFalse("hspace=" in body)
+
+    def test_load_body(self, mock):
+
+        self._populate_mock(mock, status=200, test_file="podcast_sample1.rss", content_type="application/rss+xml")
+
+        src = Source(name="test1", feed_url=self.BASE_URL, interval=0)
+        src.save()
+
+        read_feed(src)
+        self.assertEqual(src.status_code, 200)
+
+        self.assertEqual(src.posts.count(), 1)
+
+        post = src.posts.first()
+        body = post.body
+
+        logger.debug('Body: %s', body)
+        self.assertTrue("<p><strong>Find my &quot;extra&quot; content on Locals: </strong>" in body)

@@ -89,8 +89,12 @@ It's a huge pain and affects lots of self-hosted RSS readers. Seriously, Google 
 
 Feeds blocked by Cloudflare will have the `is_cloudflare` flag set on their `Source` and will update on a best-efforts basis.
 
+### Running tests
 
+To run all tests:
 
+    tox
 
+To run a specific test:
 
-
+    export TESTNAME=.<name>; tox
