@@ -30,7 +30,7 @@ class SourceAdmin(admin.ModelAdmin):
 
     prepopulated_fields = {"slug": ("name",)}
 
-    def lookup_allowed(self, request, model_admin):
+    def lookup_allowed(self, lookup, value, request=None):
         return True
 
     def posts_link(self, obj=None):
@@ -72,7 +72,7 @@ class PostAdmin(admin.ModelAdmin):
         'uuid',
     )
 
-    def lookup_allowed(self, request, model_admin):
+    def lookup_allowed(self, lookup, value, request=None):
         return True
 
     def enclosures_link(self, obj=None):
