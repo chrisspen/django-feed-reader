@@ -495,7 +495,7 @@ def parse_feed_xml(source_feed, feed_content, output):
                     logger.info('Normalized created date: %s', post_defaults['created'])
                 except Exception as ex:
                     force_set_created = False
-                    logging.exception("Unable to parse published timestamp.")
+                    logging.warning(f"Unable to parse published timestamp: '{e.published_parsed}'")
 
             try:
                 post_defaults['author'] = e.author
