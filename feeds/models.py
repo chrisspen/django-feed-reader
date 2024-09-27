@@ -4,6 +4,7 @@ import uuid
 from urllib.parse import urlencode
 
 from django.conf import settings
+#from django.contrib.postgres.indexes import GinIndex
 from django.db import models
 from django.db.models import Max
 from django.utils.text import slugify
@@ -207,6 +208,8 @@ class Post(models.Model):
         ]
         indexes = [
             models.Index(fields=['lucene_index_target', 'lucene_index_actual']),
+            models.Index(fields=['created']),
+            # GinIndex(fields=['body']),
         ]
 
     def natural_key(self):
