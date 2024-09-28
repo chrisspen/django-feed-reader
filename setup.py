@@ -24,7 +24,7 @@ def get_reqs(*fns):
 
 setuptools.setup(
     name='django-feed-reader',
-    version='0.2.5',
+    version='0.2.6',
     description='An RSS feed reading library for Django.',
     long_description=long_description,
     long_description_content_type='text/markdown',

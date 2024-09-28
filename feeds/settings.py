@@ -12,7 +12,7 @@ for h in settings.ALLOWED_HOSTS:
 
 FEEDS_SERVER = settings.FEEDS_SERVER = getattr(settings, 'FEEDS_SERVER', server)
 
-default_allowed_tags = ['em', 'ol', 'ul', 'acronym', 'strong', 'blockquote', 'abbr', 'i', 'b', 'a', 'li', 'code', 'img', 'p', 'br', 'div', 'span']
+default_allowed_tags = ['em', 'ol', 'ul', 'acronym', 'strong', 'blockquote', 'abbr', 'i', 'b', 'a', 'li', 'code', 'img', 'p', 'br', 'div', 'span', 'u']
 
 FEEDS_ALLOWED_TAGS = settings.FEEDS_ALLOWED_TAGS = getattr(settings, 'FEEDS_ALLOWED_TAGS', default_allowed_tags)
 
