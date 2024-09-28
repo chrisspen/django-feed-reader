@@ -45,12 +45,11 @@ def _customize_sanitizer(fp):
 
 
 def sanitize_html(html_content):
-    allowed_tags = list(bleach.sanitizer.ALLOWED_TAGS) + ['img', 'p', 'strong', 'br']
-    allowed_attributes = {
-        'img': ['src', 'alt', 'title', 'width', 'height'],
-        'a': ['href'],
-    }
-    return bleach.clean(html_content, tags=allowed_tags, attributes=allowed_attributes)
+    tags = settings.FEEDS_ALLOWED_TAGS
+    attributes = settings.FEEDS_ALLOWED_ATTRIBUTES
+    logger.info('Allowed tags: %s', tags)
+    logger.info('Allowed attributes: %s', attributes)
+    return bleach.clean(html_content, tags=tags, attributes=attributes)
 
 
 def get_agent(source_feed):
