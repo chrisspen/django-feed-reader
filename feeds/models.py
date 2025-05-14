@@ -1,8 +1,10 @@
 import datetime
 import logging
 import uuid
+import re
 from urllib.parse import urlencode
 
+from django.core.exceptions import ValidationError
 from django.conf import settings
 #from django.contrib.postgres.indexes import GinIndex
 from django.db import models
@@ -15,6 +17,13 @@ from . import settings as _settings # pylint: disable=unused-import
 logger = logging.getLogger(__name__)
 
 utc = datetime.timezone.utc
+
+
+def validate_regex(value):
+    try:
+        re.compile(value)
+    except re.error as exc:
+        raise ValidationError(f"Invalid regular expression: {exc}") from exc
 
 
 class SourceManager(models.Manager):
@@ -46,7 +55,8 @@ class Source(models.Model):
     interval = models.PositiveIntegerField(default=400)
     last_success = models.DateTimeField(null=True, default=timezone.make_aware(datetime.datetime(1900, 1, 1)))
     last_change = models.DateTimeField(null=True, default=timezone.make_aware(datetime.datetime(1900, 1, 1)))
-    live = models.BooleanField(default=True)
+    live = models.BooleanField(default=True, help_text='If set, shows source and posts publicaly.')
+    update = models.BooleanField(default=True, help_text='If set, periodically pulls updates from feed URL.')
     status_code = models.PositiveIntegerField(default=0)
     last_302_url = models.CharField(max_length=1000, null=True, blank=True)
     last_302_start = models.DateTimeField(null=True, blank=True)
@@ -71,6 +81,28 @@ class Source(models.Model):
     lucene_index_target = models.BooleanField(default=False, help_text='The index state we want. True=indexed for search.')
 
     lucene_index_actual = models.BooleanField(default=False, editable=False, help_text='The index state we currently have. True=indexed for search.')
+
+    # Custom raw-HTML parsing fields.
+
+    extract_from_raw_html = models.BooleanField(default=False, help_text="If checked, extracts using the raw html parsing fields below.")
+
+    html_item_class = models.CharField(max_length=255, blank=True, null=True, help_text="CSS path expression to each post list item in the raw HTML.")
+
+    html_item_link_class = models.CharField(
+        max_length=255, blank=True, null=True, help_text="CSS path expression to each post list item's page link in the raw HTML."
+    )
+
+    html_item_title_class = models.CharField(
+        max_length=255, blank=True, null=True, help_text="CSS path expression to each post list item's page title in the raw HTML."
+    )
+
+    html_item_date_class = models.CharField(
+        max_length=255, blank=True, null=True, help_text="CSS path expression to each post list item's published date in the raw HTML."
+    )
+
+    html_result_getter = models.CharField(max_length=255, blank=True, null=True, help_text="Command to call given a URL to download the actual media file.")
+
+    archive_to_s3 = models.BooleanField(default=False, help_text='If set, uploads all post media files to the pre-configured S3 bucket.')
 
     class Meta:
         indexes = [

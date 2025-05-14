@@ -4,8 +4,11 @@ import hashlib
 from random import choice
 import logging
 import json
+from urllib.parse import urlparse, urlunparse
 
 import bleach
+from bs4 import BeautifulSoup
+from dateutil.parser import parse
 
 from django.db.models import Q
 from django.utils import timezone
@@ -99,7 +102,7 @@ def fix_relative(html, url):
 def update_feeds(max_feeds=3, output=NullOutput(), sources=None, force=False):
 
     if sources is None:
-        todo = Source.objects.filter(Q(due_poll__lt=timezone.now()) & Q(live=True))
+        todo = Source.objects.filter(Q(due_poll__lt=timezone.now()) & Q(live=True, update=True))
     else:
         todo = sources
 
@@ -331,12 +334,104 @@ def read_feed(source_feed, output=NullOutput(), force=False):
     source_feed.save()
 
 
+def get_base_url(url):
+    parsed = urlparse(url)
+    return urlunparse((parsed.scheme, parsed.netloc, '', '', '', ''))
+
+
+def _get_value_from_html_parent(soup_item, css_selector):
+    attribute_name = None
+    if '@' in css_selector:
+        css_selector, attribute_name = css_selector.split('@')
+    tag = soup_item.select_one(css_selector)
+    value = None
+    if tag:
+        if attribute_name:
+            value = tag.get(attribute_name)
+        else:
+            value = tag.get_text(strip=True)
+        value = value.strip()
+    return value
+
+
+def parse_raw_html(source_feed, feed_body):
+
+    ok = True
+    changed = False
+
+    try:
+
+        assert source_feed.html_item_class
+        assert source_feed.html_item_title_class
+        assert source_feed.html_item_link_class
+        assert source_feed.html_item_date_class
+
+        logger.info("Parsing raw HTML with BS.")
+        # print('feed_body:', feed_body)
+        soup = BeautifulSoup(feed_body, 'html.parser')
+        episodes = []
+
+        # Find all episode containers using CSS selector
+        items = list(soup.select(source_feed.html_item_class))
+        logger.info(f'Found {len(items)} items.')
+        for item in items:
+
+            # Extract link.
+            link = _get_value_from_html_parent(item, source_feed.html_item_link_class)
+            if link and link.startswith('/'):
+                link = link.strip()
+                link = get_base_url(source_feed.feed_url) + link
+
+            # Extract title.
+            title = _get_value_from_html_parent(item, source_feed.html_item_title_class)
+
+            # Extract date.
+            date = _get_value_from_html_parent(item, source_feed.html_item_date_class)
+            if date:
+                date = parse(date)
+
+            if not link or not title or not date:
+                logger.info('Missing data.')
+                continue
+            logger.info('Found: %s %s %s', link, title, date)
+
+            m = hashlib.md5()
+            m.update(str((title, date)).encode('utf-8'))
+            guid = m.hexdigest()
+
+            post_defaults = dict(title=title, link=link, created=date, found=timezone.now(), index=0, body='')
+
+            logger.info('Getting or creating post %s %s for source %s...', title, guid, source_feed)
+            try:
+                post, _changed = Post.objects.get_or_create(source=source_feed, guid=guid, defaults=post_defaults)
+                post.save()
+                if _changed:
+                    changed = True
+
+                Enclosure.objects.get_or_create(post=post, href=link, type='audio/mpeg')
+
+            except IntegrityError:
+                # If this happens, it usually means some idiot changed the non-editable permalink for their post after we initially parsed it,
+                # but left the title the same, resulting in a post with a duplicate slug but different GUID.
+                # Since we've already parsed this post, and have already loaded its enclosures, we'll ignore this revised post because the change
+                # is likely irrelevant.
+                continue
+
+    except Exception as exc:
+        logger.exception(f'Error parsing raw HTML for source {source_feed.id}.')
+
+    return ok, changed
+
+
 def import_feed(source_feed, feed_body, content_type, output=NullOutput()):
 
     ok = False
     changed = False
 
-    if "xml" in content_type or "html" in content_type or feed_body[0:1] == b"<":
+    if source_feed.extract_from_raw_html:
+        logger.info('Parsing raw HTML...')
+        (ok, changed) = parse_raw_html(source_feed, feed_body)
+    elif "xml" in content_type or "html" in content_type or feed_body[0:1] == b"<":
         logger.info('Parsing XML...')
         (ok, changed) = parse_feed_xml(source_feed, feed_body, output)
     elif "json" in content_type or feed_body[0:1] == b"{":
