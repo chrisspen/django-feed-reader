@@ -4,6 +4,7 @@ import hashlib
 from random import choice
 import logging
 import json
+from datetime import timedelta
 from urllib.parse import urlparse, urlunparse
 
 import bleach
@@ -15,7 +16,7 @@ from django.utils import timezone
 from django.conf import settings
 from django.db.utils import IntegrityError
 
-from feeds.models import Source, Enclosure, Post, WebProxy, MediaContent
+from feeds.models import Source, Post, Enclosure, Post, WebProxy, MediaContent
 
 import feedparser
 from feedparser.sanitizer import _sanitize_html
@@ -99,12 +100,16 @@ def fix_relative(html, url):
     return html
 
 
-def update_feeds(max_feeds=3, output=NullOutput(), sources=None, force=False):
+def update_feeds(max_feeds=3, output=NullOutput(), sources=None, force=False, only_stalled=True):
 
     if sources is None:
         todo = Source.objects.filter(Q(due_poll__lt=timezone.now()) & Q(live=True, update=True))
     else:
         todo = sources
+
+    if only_stalled:
+        cutoff = timezone.now() - timedelta(days=30)
+        todo = todo.exclude(id__in=Post.objects.filter(created__gte=cutoff).values_list('source_id', flat=True).distinct())
 
     logger.info("Queue size is %i.", todo.count())
 
@@ -120,6 +125,10 @@ def update_feeds(max_feeds=3, output=NullOutput(), sources=None, force=False):
             src.last_polled = timezone.now()
             src.due_poll = timezone.now() + datetime.timedelta(days=1000)
             src.last_result = str(exc)[:255]
+            if only_stalled:
+                if not src.last_success or (src.last_success and (timezone.now() - src.last_success).days >= 30):
+                    logger.info("Marking source %s as disabled due to lack of updates.", src.id)
+                    src.update = False
             src.save()
 
     # Kill proxies.

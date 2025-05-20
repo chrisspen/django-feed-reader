@@ -10,6 +10,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--sources', default='')
         parser.add_argument('--force', default=False, action='store_true', help='If given, overrides any last-checked timestamps and forces a refresh.')
+        parser.add_argument('--only-stalled', default=False, action='store_true', help='If given, only refreshes stalled and disables those that are bad.')
 
     def handle(self, *args, **options):
 
@@ -18,6 +19,6 @@ class Command(BaseCommand):
         if source_ids:
             sources = Source.objects.filter(id__in=source_ids)
 
-        update_feeds(30, self.stdout, sources=sources, force=options['force'])
+        update_feeds(30, self.stdout, sources=sources, force=options['force'], only_stalled=options['only-stalled'])
 
         self.stdout.write(self.style.SUCCESS('Finished'))
