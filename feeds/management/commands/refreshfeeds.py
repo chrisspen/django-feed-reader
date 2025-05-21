@@ -19,6 +19,6 @@ class Command(BaseCommand):
         if source_ids:
             sources = Source.objects.filter(id__in=source_ids)
 
-        update_feeds(30, self.stdout, sources=sources, force=options['force'], only_stalled=options['only-stalled'])
+        update_feeds(30, self.stdout, sources=sources, force=options['force'], only_stalled=options['only_stalled'])
 
         self.stdout.write(self.style.SUCCESS('Finished'))

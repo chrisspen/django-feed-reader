@@ -11,12 +11,12 @@ import bleach
 from bs4 import BeautifulSoup
 from dateutil.parser import parse
 
-from django.db.models import Q
+from django.db.models import Q, Max
 from django.utils import timezone
 from django.conf import settings
 from django.db.utils import IntegrityError
 
-from feeds.models import Source, Post, Enclosure, Post, WebProxy, MediaContent
+from feeds.models import Source, Post, Enclosure, WebProxy, MediaContent
 
 import feedparser
 from feedparser.sanitizer import _sanitize_html
@@ -125,11 +125,18 @@ def update_feeds(max_feeds=3, output=NullOutput(), sources=None, force=False, on
             src.last_polled = timezone.now()
             src.due_poll = timezone.now() + datetime.timedelta(days=1000)
             src.last_result = str(exc)[:255]
-            if only_stalled:
-                if not src.last_success or (src.last_success and (timezone.now() - src.last_success).days >= 30):
-                    logger.info("Marking source %s as disabled due to lack of updates.", src.id)
-                    src.update = False
-            src.save()
+
+        if only_stalled:
+            most_recent_date = src.posts.aggregate(Max('created'))['created__max']
+            logger.info('Source %s has a most recent post date of %s.', src.id, most_recent_date)
+            if not src.last_success or (src.last_success and
+                                        (timezone.now() - src.last_success).days >= 30) or ((timezone.now() - most_recent_date).days >= 30):
+                logger.info("Marking source %s as disabled due to lack of updates.", src.id)
+                src.update = False
+            else:
+                logger.info("Source %s is still functional.", src.id)
+
+        src.save()
 
     # Kill proxies.
     WebProxy.objects.filter(address='X').delete()
