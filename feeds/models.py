@@ -86,6 +86,15 @@ class Source(models.Model):
 
     extract_from_raw_html = models.BooleanField(default=False, help_text="If checked, extracts using the raw html parsing fields below.")
 
+    extract_from_raw_html_page_key = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text='Optional URL key to denote page. If given, the URL will be iterated over, substituting N pages in this variable.'
+    )
+
+    extract_from_raw_html_page_max = models.IntegerField(default=10, blank=False, null=False, help_text='Maximum page number to iterate to.')
+
     html_item_class = models.CharField(max_length=255, blank=True, null=True, help_text="CSS path expression to each post list item in the raw HTML.")
 
     html_item_link_class = models.CharField(

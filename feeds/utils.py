@@ -5,7 +5,7 @@ from random import choice
 import logging
 import json
 from datetime import timedelta
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse, unquote, parse_qsl, urlencode
 
 import bleach
 from bs4 import BeautifulSoup
@@ -17,6 +17,7 @@ from django.conf import settings
 from django.db.utils import IntegrityError
 
 from feeds.models import Source, Post, Enclosure, WebProxy, MediaContent
+from feeds.constants import REAL_CDNS
 
 import feedparser
 from feedparser.sanitizer import _sanitize_html
@@ -34,6 +35,15 @@ class NullOutput:
     # little class for when we have no outputter
     def write(self, str): # pylint: disable=redefined-builtin
         pass
+
+
+def strip_podcast_trackers(url: str) -> str:
+    decoded = unquote(url)
+    parts = decoded.split('/')
+    for i, part in enumerate(parts):
+        if any(cdn in part and part.endswith('.mp3') for cdn in REAL_CDNS):
+            return 'https://' + '/'.join(parts[i - 1:]) if not parts[i - 1].startswith('http') else '/'.join(parts[i - 1:])
+    return url
 
 
 def _customize_sanitizer(fp):
@@ -119,7 +129,13 @@ def update_feeds(max_feeds=3, output=NullOutput(), sources=None, force=False, on
 
     for src in sources:
         try:
-            read_feed(src, output, force=force)
+            if src.extract_from_raw_html and src.extract_from_raw_html_page_key:
+                max_page = max(src.extract_from_raw_html_page_max, 1)
+                for page in range(1, max_page + 1):
+                    logger.info('Reading page %s of %s.', page, max_page)
+                    read_feed(src, output, force=force, page=page, page_key=src.extract_from_raw_html_page_key)
+            else:
+                read_feed(src, output, force=force)
         except Exception as exc:
             logging.error('Unable to update source %s.', src)
             src.last_polled = timezone.now()
@@ -131,8 +147,12 @@ def update_feeds(max_feeds=3, output=NullOutput(), sources=None, force=False, on
             logger.info('Source %s has a most recent post date of %s.', src.id, most_recent_date)
             if not src.last_success or (src.last_success and
                                         (timezone.now() - src.last_success).days >= 30) or ((timezone.now() - most_recent_date).days >= 30):
-                logger.info("Marking source %s as disabled due to lack of updates.", src.id)
-                src.update = False
+                if src.is_cloudflare:
+                    logger.info("Disabling cloudflare for source %s due to lack of updates.", src.id)
+                    src.is_cloudflare = False
+                else:
+                    logger.info("Marking source %s as disabled due to lack of updates.", src.id)
+                    src.update = False
             else:
                 logger.info("Source %s is still functional.", src.id)
 
@@ -142,7 +162,7 @@ def update_feeds(max_feeds=3, output=NullOutput(), sources=None, force=False, on
     WebProxy.objects.filter(address='X').delete()
 
 
-def read_feed(source_feed, output=NullOutput(), force=False):
+def read_feed(source_feed, output=NullOutput(), force=False, page=None, page_key=None):
     logger.info('-' * 80)
     logger.info('Reading feed: %s', source_feed)
 
@@ -176,11 +196,19 @@ def read_feed(source_feed, output=NullOutput(), force=False):
         if source_feed.last_modified:
             headers["If-Modified-Since"] = str(source_feed.last_modified)
 
-    logger.info("Fetching %s.", source_feed.feed_url)
-
     ret = None
     try:
-        ret = requests.get(source_feed.feed_url, headers=headers, allow_redirects=False, timeout=20, proxies=proxies)
+
+        feed_url = source_feed.feed_url
+        if page and page_key:
+            url_parts = urlparse(feed_url)
+            query = dict(parse_qsl(url_parts.query))
+            query[page_key] = page
+            new_query = urlencode(query)
+            feed_url = urlunparse(url_parts._replace(query=new_query))
+
+        logger.info("Fetching %s.", feed_url)
+        ret = requests.get(feed_url, headers=headers, allow_redirects=False, timeout=20, proxies=proxies)
         source_feed.status_code = ret.status_code
         source_feed.last_result = "Unhandled Case"
         logger.info('Response: %s', str(ret))
@@ -405,6 +433,7 @@ def parse_raw_html(source_feed, feed_body):
             date = _get_value_from_html_parent(item, source_feed.html_item_date_class)
             if date:
                 date = parse(date)
+            logger.info('Publish date: %s', date)
 
             if not link or not title or not date:
                 logger.info('Missing data.')
@@ -420,6 +449,7 @@ def parse_raw_html(source_feed, feed_body):
             logger.info('Getting or creating post %s %s for source %s...', title, guid, source_feed)
             try:
                 post, _changed = Post.objects.get_or_create(source=source_feed, guid=guid, defaults=post_defaults)
+                post.created = date
                 post.save()
                 if _changed:
                     changed = True
