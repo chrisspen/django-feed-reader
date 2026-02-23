@@ -2,7 +2,7 @@
 set -e
 VENV=.env
 [ -d $VENV ] && rm -Rf $VENV || true
-python3.11 -m venv $VENV
+python3.12 -m venv $VENV
 . $VENV/bin/activate
 pip install -U pip wheel setuptools
 echo "[$(date)] Installing requirements.txt."

@@ -1,12 +1,15 @@
 from django.contrib import admin
 from django.utils.safestring import mark_safe
 from django.urls import reverse
+from django.db import models
 
 # Register your models here.
 from feeds import models
 
 
 class SourceAdmin(admin.ModelAdmin):
+
+    show_full_result_count = False
 
     list_display = (
         'name',
@@ -30,15 +33,21 @@ class SourceAdmin(admin.ModelAdmin):
 
     prepopulated_fields = {"slug": ("name",)}
 
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.select_related('chunking_options').annotate(posts_count=models.Count('posts'))
+
     def lookup_allowed(self, lookup, value, request=None):
         return True
 
     def posts_link(self, obj=None):
         if not obj or not obj.id:
             return ''
-        qs = obj.posts.all()
         url = reverse('admin:feeds_post_changelist')
-        return mark_safe(f'<a href="{url}?source_id={obj.id}" target="_blank">{qs.count()} Posts</a>')
+        count = getattr(obj, 'posts_count', None)
+        if count is None:
+            count = obj.posts.count()
+        return mark_safe(f'<a href="{url}?source_id={obj.id}" target="_blank">{count} Posts</a>')
 
     posts_link.short_description = 'posts'
 

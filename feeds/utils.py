@@ -1,3 +1,4 @@
+import html
 import time
 import datetime
 import hashlib
@@ -58,11 +59,40 @@ def _customize_sanitizer(fp):
             logging.debug("Could not remove %s", item)
 
 
+def unescape_double_escaped_html(html_content):
+    """
+    Detect and fix double-escaped HTML tags.
+
+    Some feeds send content with tags already escaped like '&lt;p&gt;' instead of '<p>'.
+    This function detects common escaped tag patterns and unescapes them.
+    """
+    if not html_content:
+        return html_content
+
+    # Check for common escaped tag patterns
+    escaped_patterns = [
+        '&lt;p', '&lt;a ', '&lt;br', '&lt;div', '&lt;span', '&lt;img', '&lt;em', '&lt;strong', '&lt;b&gt;', '&lt;i&gt;', '&lt;ul', '&lt;ol', '&lt;li',
+        '&lt;blockquote'
+    ]
+
+    needs_unescape = any(pattern in html_content for pattern in escaped_patterns)
+
+    if needs_unescape:
+        logger.debug('Detected double-escaped HTML, unescaping')
+        return html.unescape(html_content)
+
+    return html_content
+
+
 def sanitize_html(html_content):
     tags = settings.FEEDS_ALLOWED_TAGS
     attributes = settings.FEEDS_ALLOWED_ATTRIBUTES
-    logger.info('Allowed tags: %s', tags)
-    logger.info('Allowed attributes: %s', attributes)
+    logger.debug('Allowed tags: %s', tags)
+    logger.debug('Allowed attributes: %s', attributes)
+
+    # Fix double-escaped HTML before sanitizing
+    html_content = unescape_double_escaped_html(html_content)
+
     return bleach.clean(html_content, tags=tags, attributes=attributes)
 
 
