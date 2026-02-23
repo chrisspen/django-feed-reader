@@ -1,7 +1,7 @@
 Django Feed Reader
 =============
 
-[![Build Status](https://github.com/chrisspen/django-feed-reader/actions/workflows/django.yml/badge.svg)](https://github.com/chrisspen/django-feed-reader/actions)
+[![Build Status](https://github.com/chrisspen/django-feed-reader/actions/workflows/django.yml/badge.svg?branch=master)](https://github.com/chrisspen/django-feed-reader/actions/workflows/django.yml)
 
 This is a simple Django module to allow you subscribe to RSS (and other) feeds.
 
