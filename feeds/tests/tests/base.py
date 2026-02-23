@@ -11,7 +11,7 @@ class BaseTests(TestCase):
     TEST_FILES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../testdata")
     BASE_URL = 'http://feed.com/'
 
-    def _populate_mock(self, mock, test_file, status, content_type, etag=None, headers=None, url=BASE_URL, is_cloudflare=False):
+    def _populate_mock(self, mock, test_file, status, content_type, etag=None, headers=None, url=BASE_URL, is_cloudflare=False): # pylint: disable=too-many-positional-arguments
 
         with open(os.path.join(self.TEST_FILES_FOLDER, test_file), "rb") as fin:
             content = fin.read()

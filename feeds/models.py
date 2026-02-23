@@ -122,7 +122,7 @@ class Source(models.Model):
         return (self.slug,)
 
     def __str__(self):
-        return self.display_name
+        return str(self.display_name or '')
 
     @property
     def best_link(self):
@@ -268,7 +268,7 @@ class Post(models.Model):
             ret = ""
 
     def __str__(self):
-        return "%s: post %d, %s" % (self.source.display_name, self.index, self.title)
+        return f"{self.source.display_name}: post {self.index}, {self.title}"
 
     @property
     def recast_link(self):
