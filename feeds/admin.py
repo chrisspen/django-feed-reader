@@ -1,9 +1,8 @@
 from django.contrib import admin
-from django.utils.safestring import mark_safe
+from django.db.models import Count
 from django.urls import reverse
-from django.db import models
+from django.utils.safestring import mark_safe
 
-# Register your models here.
 from feeds import models
 
 
@@ -35,7 +34,7 @@ class SourceAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        return qs.select_related('chunking_options').annotate(posts_count=models.Count('posts'))
+        return qs.select_related('chunking_options').annotate(posts_count=Count('posts'))
 
     def lookup_allowed(self, lookup, value, request=None):
         return True
