@@ -78,6 +78,8 @@ class PostAdmin(admin.ModelAdmin):
         'subtitle_type',
         'lucene_index_actual',
         'uuid',
+        'found',
+        'created',
     )
 
     def lookup_allowed(self, lookup, value, request=None):
