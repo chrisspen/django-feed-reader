@@ -69,10 +69,10 @@ def unescape_double_escaped_html(html_content):
     if not html_content:
         return html_content
 
-    # Check for common escaped tag patterns
+    # Check for common escaped tag patterns (opening AND closing tags)
     escaped_patterns = [
         '&lt;p', '&lt;a ', '&lt;br', '&lt;div', '&lt;span', '&lt;img', '&lt;em', '&lt;strong', '&lt;b&gt;', '&lt;i&gt;', '&lt;ul', '&lt;ol', '&lt;li',
-        '&lt;blockquote'
+        '&lt;blockquote', '&lt;/'
     ]
 
     needs_unescape = any(pattern in html_content for pattern in escaped_patterns)
