@@ -295,7 +295,7 @@ def read_feed(source_feed, output=NullOutput(), force=False, page=None, page_key
             source_feed.etag = None
             source_feed.last_modified = None
 
-    elif ret.status_code in (301, 308): #permenant redirect
+    elif ret.status_code in (301, 308): #permanent redirect
         new_url = ""
         try:
             if "Location" in ret.headers:
@@ -309,8 +309,12 @@ def read_feed(source_feed, output=NullOutput(), force=False, page=None, page_key
                     new_url = base + new_url
 
                 source_feed.feed_url = new_url
+                source_feed.last_result = "Moved to " + new_url
 
-                source_feed.last_result = "Moved"
+                # Follow the redirect and fetch the new URL
+                logger.info("Following permanent redirect to %s", new_url)
+                ret = requests.get(new_url, headers=headers, allow_redirects=True, timeout=20, proxies=proxies)
+                source_feed.status_code = ret.status_code
             else:
                 source_feed.last_result = "Feed has moved but no location provided"
         except Exception as Ex:
