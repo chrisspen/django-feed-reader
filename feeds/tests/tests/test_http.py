@@ -172,6 +172,7 @@ class Tests(BaseTests):
         self.assertTrue(src.live)
 
     def test_perm_redirect(self, mock):
+        # Permanent redirects (301/308) are now followed immediately in the same read_feed() call
 
         new_url = "http://new.feed.com/"
         self._populate_mock(mock, status=301, test_file="empty_file.txt", content_type="text/plain", headers={"Location": new_url})
@@ -181,14 +182,11 @@ class Tests(BaseTests):
         src.save()
 
         read_feed(src)
-        self.assertEqual(src.status_code, 301)
-        self.assertEqual(src.interval, 60)
-        self.assertEqual(src.feed_url, new_url)
-
-        read_feed(src)
+        # Redirect is followed immediately, so we get the final status code
         self.assertEqual(src.status_code, 200)
         self.assertEqual(src.posts.count(), 1)
         self.assertEqual(src.interval, 60)
+        self.assertEqual(src.feed_url, new_url)
         self.assertTrue(src.live)
 
     def test_server_error_1(self, mock):
