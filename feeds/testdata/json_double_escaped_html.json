@@ -1,0 +1,16 @@
+{
+    "__TEST__": "Description: JSON feed with double-escaped HTML in content_html - tests that sanitize_html is called for JSON feeds",
+    "version": "https://jsonfeed.org/version/1",
+    "title": "Double Escaped Test Feed",
+    "home_page_url": "https://example.org/",
+    "feed_url": "https://example.org/feed.json",
+    "items": [
+        {
+            "id": "1",
+            "title": "Post with double-escaped HTML",
+            "content_html": "&lt;p&gt;This is double-escaped HTML.&lt;/p&gt;&lt;p&gt;It should be &lt;strong&gt;unescaped&lt;/strong&gt; properly.&lt;/p&gt;",
+            "url": "https://example.org/double-escaped-post",
+            "date_published": "2024-01-15T10:00:00Z"
+        }
+    ]
+}

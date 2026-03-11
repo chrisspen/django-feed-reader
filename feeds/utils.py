@@ -865,6 +865,8 @@ def parse_feed_json(source_feed, feed_content, output):
             # borrow the RSS parser's sanitizer
             _customize_sanitizer(feedparser)
             body = _sanitize_html(body, "utf-8", 'text/html') # TODO: validate charset ??
+            # Also apply our custom sanitize_html which handles double-escaped HTML
+            body = sanitize_html(body)
             _customize_sanitizer(feedparser)
             title = _sanitize_html(title, "utf-8", 'text/html') # TODO: validate charset ??
             # no other fields are ever marked as |safe in the templates

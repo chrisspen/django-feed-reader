@@ -78,3 +78,28 @@ class Tests(BaseTests):
             "t=podcast&e=734830514&size=37575870&ft=pod&f=510317&awCollectionId=510317&"
             "awEpisodeId=734830514"
         )
+
+    def test_double_escaped_html(self, mock):
+        """
+        Test that JSON feeds with double-escaped HTML (&lt;p&gt;) are properly
+        unescaped to valid HTML (<p>).
+
+        This was a bug where parse_feed_json only called feedparser's _sanitize_html
+        but not our custom sanitize_html which includes unescape_double_escaped_html.
+        """
+        self._populate_mock(mock, status=200, test_file="json_double_escaped_html.json", content_type="application/json")
+
+        src = Source(name="test1", feed_url=self.BASE_URL, interval=0)
+        src.save()
+
+        read_feed(src)
+        self.assertEqual(src.status_code, 200)
+        self.assertEqual(src.posts.count(), 1)
+
+        post = src.posts.all().first()
+        # The body should contain proper HTML tags, not escaped entities
+        self.assertIn('<p>', post.body)
+        self.assertIn('<strong>', post.body)
+        # Should NOT contain double-escaped entities
+        self.assertNotIn('&lt;p&gt;', post.body)
+        self.assertNotIn('&lt;strong&gt;', post.body)
