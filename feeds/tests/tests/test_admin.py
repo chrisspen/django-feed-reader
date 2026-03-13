@@ -5,7 +5,7 @@ from django.contrib.admin.sites import AdminSite
 from django.test import TestCase, RequestFactory
 
 from feeds import models
-from feeds.admin import SourceAdmin
+from feeds.admin import SourceAdmin, EnclosureAdmin, MediaContentAdmin
 
 
 class AdminImportTests(TestCase):
@@ -34,3 +34,15 @@ class AdminImportTests(TestCase):
 
         # Verify the annotation is present
         self.assertIn('posts_count', qs.query.annotations)
+
+    def test_enclosure_admin_lookup_allowed_accepts_related_lookup(self):
+        site = AdminSite()
+        admin = EnclosureAdmin(models.Enclosure, site)
+
+        self.assertTrue(admin.lookup_allowed('post__id', '123'))
+
+    def test_media_content_admin_lookup_allowed_accepts_related_lookup(self):
+        site = AdminSite()
+        admin = MediaContentAdmin(models.MediaContent, site)
+
+        self.assertTrue(admin.lookup_allowed('post__id', '123'))

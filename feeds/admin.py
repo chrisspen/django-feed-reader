@@ -110,7 +110,7 @@ class EnclosureAdmin(admin.ModelAdmin):
 
     list_display = ('href', 'type', 'length')
 
-    def lookup_allowed(self, request, model_admin):
+    def lookup_allowed(self, lookup, value, request=None):
         return True
 
 
@@ -127,7 +127,7 @@ class MediaContentAdmin(admin.ModelAdmin):
         'duration',
     )
 
-    def lookup_allowed(self, request, model_admin):
+    def lookup_allowed(self, lookup, value, request=None):
         return True
 
 
