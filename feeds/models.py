@@ -216,6 +216,7 @@ class Post(models.Model):
     title = models.TextField(blank=True)
     slug = models.SlugField(max_length=2000, blank=True, null=True) # Note, may be limited due to OS filename.
     body = models.TextField()
+    has_bad_body_escaping = models.BooleanField(null=True, db_index=True, default=None)
     link = models.CharField(max_length=2000, blank=True, null=True)
     found = models.DateTimeField(auto_now_add=True)
     created = models.DateTimeField(db_index=True, auto_now_add=True)
@@ -275,10 +276,15 @@ class Post(models.Model):
         return "/post/%d/" % self.id
 
     def save(self, *args, **kwargs):
+        old = None
+        if self.pk:
+            old = type(self).objects.get(pk=self.pk)
 
         # Inherit index target from source.
         if not self.pk:
             self.lucene_index_target = self.source.lucene_index_target
+        elif old and old.body != self.body and self.has_bad_body_escaping == old.has_bad_body_escaping:
+            self.has_bad_body_escaping = None
 
         if not self.slug:
             self.slug = slugify((self.title or '').strip())
