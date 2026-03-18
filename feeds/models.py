@@ -220,6 +220,8 @@ class Post(models.Model):
     link = models.CharField(max_length=2000, blank=True, null=True)
     found = models.DateTimeField(auto_now_add=True)
     created = models.DateTimeField(db_index=True, auto_now_add=True)
+    created_on = models.DateTimeField(blank=True, null=True, editable=False)
+    updated_on = models.DateTimeField(blank=True, null=True, editable=False)
     guid = models.CharField(max_length=2000, blank=True, null=True, db_index=True)
     author = models.CharField(max_length=2000, blank=True, null=True)
     index = models.IntegerField(db_index=True)
@@ -279,6 +281,11 @@ class Post(models.Model):
         old = None
         if self.pk:
             old = type(self).objects.get(pk=self.pk)
+
+        now = timezone.now()
+        if not self.pk and self.created_on is None:
+            self.created_on = now
+        self.updated_on = now
 
         # Inherit index target from source.
         if not self.pk:
