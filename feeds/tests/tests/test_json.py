@@ -1,4 +1,5 @@
 import requests_mock
+from django.utils import timezone
 
 from feeds.models import Source
 from feeds.utils import read_feed
@@ -103,3 +104,33 @@ class Tests(BaseTests):
         # Should NOT contain double-escaped entities
         self.assertNotIn('&lt;p&gt;', post.body)
         self.assertNotIn('&lt;strong&gt;', post.body)
+
+    def test_invalid_published_date_defaults_to_now(self, mock):
+        content = """
+        {
+          "title": "Bad Date Feed",
+          "items": [
+            {
+              "id": "bad-date-1",
+              "title": "Ancient episode",
+              "content_text": "hello",
+              "date_published": "1968-12-01T00:00:00Z",
+              "attachments": [
+                {"url": "https://example.com/test.mp3", "mime_type": "audio/mpeg"}
+              ]
+            }
+          ]
+        }
+        """
+        mock.register_uri('GET', self.BASE_URL, status_code=200, text=content, headers={"Content-Type": "application/json", "etag": "an-etag"})
+
+        src = Source(name="test1", feed_url=self.BASE_URL, interval=0)
+        src.save()
+
+        before = timezone.now()
+        read_feed(src)
+        after = timezone.now()
+
+        post = src.posts.get()
+        self.assertGreaterEqual(post.created, before)
+        self.assertLessEqual(post.created, after)

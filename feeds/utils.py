@@ -30,12 +30,34 @@ import pyrfc3339
 logger = logging.getLogger(__name__)
 
 utc = datetime.timezone.utc
+MIN_REASONABLE_POST_DATE = datetime.datetime(2000, 1, 1, tzinfo=utc)
+MAX_REASONABLE_POST_DATE_SKEW = datetime.timedelta(days=7)
 
 
 class NullOutput:
     # little class for when we have no outputter
     def write(self, str): # pylint: disable=redefined-builtin
         pass
+
+
+def normalize_post_created(date_value, *, context=''):
+    """
+    Convert feed-supplied publish dates into a reasonable timestamp for Post.created.
+
+    If a feed provides a wildly old or future date, use the current timestamp instead.
+    """
+    now = timezone.now()
+    if date_value is None:
+        return now
+
+    if timezone.is_naive(date_value):
+        date_value = timezone.make_aware(date_value, utc)
+
+    if date_value < MIN_REASONABLE_POST_DATE or date_value > now + MAX_REASONABLE_POST_DATE_SKEW:
+        logger.warning('Ignoring unreasonable post created date %s for %s; using now().', date_value, context or 'unknown entry')
+        return now
+
+    return date_value
 
 
 def strip_podcast_trackers(url: str) -> str:
@@ -467,6 +489,7 @@ def parse_raw_html(source_feed, feed_body):
             date = _get_value_from_html_parent(item, source_feed.html_item_date_class)
             if date:
                 date = parse(date)
+                date = normalize_post_created(date, context=link or title or source_feed.feed_url)
             logger.info('Publish date: %s', date)
 
             if not link or not title or not date:
@@ -665,7 +688,10 @@ def parse_feed_xml(source_feed, feed_content, output):
             if 'published_parsed' in e:
                 try:
                     logger.info('Raw created date: %s', e.published_parsed)
-                    post_defaults['created'] = datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=utc)
+                    post_defaults['created'] = normalize_post_created(
+                        datetime.datetime.fromtimestamp(time.mktime(e.published_parsed)).replace(tzinfo=utc),
+                        context=guid or post_defaults.get('title') or source_feed.feed_url,
+                    )
                     logger.info('Normalized created date: %s', post_defaults['created'])
                 except Exception as ex:
                     force_set_created = False
@@ -885,7 +911,10 @@ def parse_feed_json(source_feed, feed_content, output):
             p.title = title
 
             try:
-                p.created = pyrfc3339.parse(e["date_published"])
+                p.created = normalize_post_created(
+                    pyrfc3339.parse(e["date_published"]),
+                    context=guid or title or source_feed.feed_url,
+                )
             except Exception as exc:
                 logger.warning('Entry %s has a missing or invalid "date_published". Defaulting to now(). %s', e, exc)
                 p.created = timezone.now()

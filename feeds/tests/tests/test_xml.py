@@ -1,5 +1,6 @@
 import logging
 import requests_mock
+from django.utils import timezone
 
 from feeds.models import Source
 from feeds.utils import read_feed
@@ -107,3 +108,42 @@ class Tests(BaseTests):
 
         logger.debug('Body: %s', body)
         self.assertTrue("<p><strong>Find my &quot;extra&quot; content on Locals: </strong>" in body)
+
+    def test_invalid_pubdate_defaults_to_now(self, mock):
+        content = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Bad Date Feed</title>
+    <link>https://example.com/</link>
+    <description>bad date test</description>
+    <item>
+      <title>Ancient Episode</title>
+      <guid>bad-date-xml-1</guid>
+      <link>https://example.com/episode</link>
+      <pubDate>Sun, 01 Dec 1968 00:00:00 +0000</pubDate>
+      <description>Hello</description>
+      <enclosure url="https://example.com/test.mp3" length="123" type="audio/mpeg" />
+    </item>
+  </channel>
+</rss>"""
+        mock.register_uri(
+            'GET',
+            self.BASE_URL,
+            status_code=200,
+            content=content.encode('utf-8'),
+            headers={
+                "Content-Type": "application/rss+xml",
+                "etag": "an-etag"
+            },
+        )
+
+        src = Source(name="test1", feed_url=self.BASE_URL, interval=0)
+        src.save()
+
+        before = timezone.now()
+        read_feed(src)
+        after = timezone.now()
+
+        post = src.posts.get()
+        self.assertGreaterEqual(post.created, before)
+        self.assertLessEqual(post.created, after)
